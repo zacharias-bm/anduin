@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+*.egg
+
+# Briefcase build artifacts
+.briefcase/
+build/
+logs/
+
+# macOS
+.DS_Store
+._*
+
+# IDE / tools
+.vscode/
+.idea/
+*.swp
+*.swo
+.claude/
+
+# Environment
+.env
+.env.*
+*.pem
+*.key
+
+# App data (lives in ~/Library/Application Support/Anduin/)
+*.db
+*.sqlite
+config.json
+recording_tmp.wav
+
+# Conda / venv
+.conda/
+.venv/
+venv/

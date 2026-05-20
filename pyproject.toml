@@ -1,0 +1,50 @@
+[build-system]
+requires = ["briefcase"]
+
+[project]
+name = "anduin"
+version = "0.1.0"
+requires-python = ">=3.9"
+
+[project.scripts]
+anduin = "anduin.ui.menubar:main"
+
+[tool.briefcase]
+project_name = "Anduin"
+bundle = "com.backingminds"
+version = "0.1.0"
+url = "https://backingminds.com"
+license = "Proprietary"
+author = "BackingMinds"
+author_email = ""
+
+[tool.briefcase.app.anduin]
+formal_name = "Anduin"
+description = "Local meeting transcription and summarization"
+icon = "resources/anduin"
+sources = ["anduin"]
+requires = [
+    "faster-whisper",
+    "pyannote.audio",
+    "silero-vad",
+    "sounddevice",
+    "soundfile",
+    "torch",
+    "torchaudio",
+    "psutil",
+    "rumps",
+    "keyring",
+    "pyyaml",
+    "requests",
+    "imageio-ffmpeg",
+    "huggingface-hub",
+    "pyobjc-framework-WebKit",
+]
+
+[tool.briefcase.app.anduin.macOS]
+universal_build = false
+requires = []
+
+[tool.briefcase.app.anduin.macOS.info]
+NSMicrophoneUsageDescription = "Anduin needs microphone access to record meetings."
+NSDocumentsFolderUsageDescription = "Anduin needs access to process audio files you select."

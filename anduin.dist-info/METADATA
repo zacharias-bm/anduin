@@ -1,0 +1,10 @@
+Metadata-Version: 2.1
+Briefcase-Version: 0.4.2
+Name: anduin
+Formal-Name: Anduin
+App-ID: com.backingminds.anduin
+Version: 0.1.0
+Home-page: https://backingminds.com
+Download-URL: https://backingminds.com
+Author: BackingMinds
+Summary: Local meeting transcription and summarization
