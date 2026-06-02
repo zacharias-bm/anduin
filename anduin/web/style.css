@@ -765,33 +765,38 @@ html, body {
   border-radius: 3px;
 }
 
-/* Meeting actions */
-#meeting-actions {
-  margin-top: 32px;
-  padding-top: 20px;
-  border-top: 1px solid var(--color-border);
+/* Meeting header layout */
+#meeting-header-top {
   display: flex;
-  gap: 10px;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.action-btn {
-  font-family: 'Geist Sans', sans-serif;
-  font-size: 12px;
-  padding: 6px 14px;
-  border-radius: 6px;
+#meeting-header-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.icon-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
   border: none;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-.action-btn:hover { opacity: 0.85; }
-
-.action-btn-subtle {
-  background: rgba(128,128,128,0.1);
+  background: rgba(128,128,128,0.08);
   color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.icon-btn:hover {
+  background: rgba(128,128,128,0.16);
+  color: var(--text-primary);
 }
 
-.action-btn-danger {
-  background: rgba(255,59,48,0.1);
+.icon-btn-danger:hover {
+  background: rgba(255,59,48,0.12);
   color: #ff3b30;
 }
