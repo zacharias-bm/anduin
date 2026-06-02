@@ -230,6 +230,36 @@ class _Handler(BaseHTTPRequestHandler):
         else:
             self._json({"error": "not found"}, 404)
 
+    def do_DELETE(self):
+        parsed = urlparse(self.path)
+        path = parsed.path.rstrip("/")
+
+        if path.startswith("/api/meetings/") and path.endswith("/audio"):
+            parts = path.split("/")
+            try:
+                mid = int(parts[3])
+            except ValueError:
+                self._json({"error": "invalid id"}, 400)
+                return
+            if store.delete_audio(mid):
+                self._json({"ok": True})
+            else:
+                self._json({"error": "no audio file found"}, 404)
+
+        elif path.startswith("/api/meetings/") and path.count("/") == 3:
+            try:
+                mid = int(path.split("/")[3])
+            except ValueError:
+                self._json({"error": "invalid id"}, 400)
+                return
+            if store.delete_meeting(mid):
+                self._json({"ok": True})
+            else:
+                self._json({"error": "not found"}, 404)
+
+        else:
+            self._json({"error": "not found"}, 404)
+
     def _serve_static(self, url_path: str):
         if url_path in ("", "/"):
             url_path = "/index.html"

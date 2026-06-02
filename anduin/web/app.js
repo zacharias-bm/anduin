@@ -135,6 +135,12 @@ function renderMeeting(m) {
   }
 
   renderTranscript(m.transcript || []);
+
+  // Meeting actions
+  const deleteAudioBtn = document.getElementById("delete-audio-btn");
+  if (deleteAudioBtn) {
+    deleteAudioBtn.style.display = m.has_audio ? "inline-block" : "none";
+  }
 }
 
 function renderTranscript(segments) {
@@ -227,6 +233,25 @@ if (summarizeBtn) {
     await fetch(`/api/meetings/${currentMeetingId}/summarize`, { method: "POST" });
   });
 }
+
+// Delete meeting
+document.getElementById("delete-meeting-btn").addEventListener("click", async () => {
+  if (!currentMeetingId) return;
+  if (!confirm("Delete this meeting and all its data? This cannot be undone.")) return;
+  await fetch(`/api/meetings/${currentMeetingId}`, { method: "DELETE" });
+  currentMeetingId = null;
+  document.getElementById("meeting-view").style.display = "none";
+  document.getElementById("empty-state").style.display = "flex";
+  loadMeetings();
+});
+
+// Delete audio only
+document.getElementById("delete-audio-btn").addEventListener("click", async () => {
+  if (!currentMeetingId) return;
+  if (!confirm("Delete the audio recording? The transcript and summary will be kept.")) return;
+  await fetch(`/api/meetings/${currentMeetingId}/audio`, { method: "DELETE" });
+  document.getElementById("delete-audio-btn").style.display = "none";
+});
 
 // Search
 let searchTimeout;

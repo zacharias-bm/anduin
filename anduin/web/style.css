@@ -764,3 +764,34 @@ html, body {
   background: var(--color-border);
   border-radius: 3px;
 }
+
+/* Meeting actions */
+#meeting-actions {
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.action-btn {
+  font-family: 'Geist Sans', sans-serif;
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.action-btn:hover { opacity: 0.85; }
+
+.action-btn-subtle {
+  background: rgba(128,128,128,0.1);
+  color: var(--text-secondary);
+}
+
+.action-btn-danger {
+  background: rgba(255,59,48,0.1);
+  color: #ff3b30;
+}

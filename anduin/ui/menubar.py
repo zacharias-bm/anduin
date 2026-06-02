@@ -99,15 +99,10 @@ class AnduinApp(rumps.App):
             rumps.MenuItem("Record Meeting…", callback=self._record),
             rumps.MenuItem("Stop Recording", callback=self._stop_recording),
             None,
-            rumps.MenuItem("Process Audio File…", callback=self._process_file),
-            None,
-            rumps.MenuItem("Recent Meetings", callback=None),
-            None,
             rumps.MenuItem("Settings…", callback=self._open_settings),
             rumps.MenuItem("Quit", callback=self._quit),
         ]
         self.menu["Stop Recording"].set_callback(None)
-        self._refresh_recent()
 
     def _quit(self, _):
         import os

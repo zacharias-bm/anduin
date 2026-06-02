@@ -68,11 +68,12 @@ def get_meeting(meeting_id: int) -> dict | None:
     summary_path = path / "summary.md"
     if summary_path.exists():
         summary = summary_path.read_text()
+    has_audio = (path / "audio.wav").exists()
     return {
         "id": row[0], "title": row[1], "date": row[2], "path": row[3],
         "duration_secs": row[4], "speaker_count": row[5],
         "transcript": transcript, "summary": summary,
-        "has_summary": bool(summary),
+        "has_summary": bool(summary), "has_audio": has_audio,
     }
 
 
@@ -117,6 +118,39 @@ def rename_speaker(meeting_id: int, old_name: str, new_name: str):
 
     # Re-index
     _index_meeting(path, title=meeting["title"])
+
+
+def delete_meeting(meeting_id: int) -> bool:
+    """Delete a meeting and all its files."""
+    meeting = get_meeting(meeting_id)
+    if not meeting:
+        return False
+    path = Path(meeting["path"])
+
+    # Remove from DB
+    with _connect() as con:
+        con.execute("DELETE FROM meetings_fts WHERE rowid = ?", (meeting_id,))
+        con.execute("DELETE FROM meetings WHERE id = ?", (meeting_id,))
+
+    # Remove files
+    import shutil
+    if path.exists():
+        shutil.rmtree(path)
+
+    return True
+
+
+def delete_audio(meeting_id: int) -> bool:
+    """Delete only the audio file for a meeting, keeping transcript and summary."""
+    meeting = get_meeting(meeting_id)
+    if not meeting:
+        return False
+    path = Path(meeting["path"])
+    audio_file = path / "audio.wav"
+    if audio_file.exists():
+        audio_file.unlink()
+        return True
+    return False
 
 
 def search(query: str) -> list[dict]:
