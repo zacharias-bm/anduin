@@ -12,8 +12,11 @@ def align(
     speaker_names = speaker_names or {}
     segments = []
     for seg in transcript:
-        raw_speaker = _dominant_speaker(seg["start"], seg["end"], diarization)
-        speaker = speaker_names.get(raw_speaker, raw_speaker)
+        if diarization:
+            raw_speaker = _dominant_speaker(seg["start"], seg["end"], diarization)
+            speaker = speaker_names.get(raw_speaker, raw_speaker)
+        else:
+            speaker = "Speaker"
         segments.append({
             "speaker": speaker,
             "start": seg["start"],

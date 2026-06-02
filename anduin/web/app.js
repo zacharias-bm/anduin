@@ -262,7 +262,20 @@ async function loadSettingsPanel() {
   const settings = await fetchJSON("/api/settings");
   document.getElementById("s-auto-summarize").checked = settings.auto_summarize;
   document.getElementById("s-keep-audio").checked = settings.keep_audio;
-  document.getElementById("s-manage-ollama").checked = settings.manage_ollama;
+  document.getElementById("s-diarization-enabled").checked = settings.diarization_enabled;
+
+  // Show/hide HF token row based on diarization toggle
+  const hfRow = document.getElementById("hf-token-row");
+  if (hfRow) hfRow.style.display = settings.diarization_enabled ? "flex" : "none";
+
+  // Load HF token status
+  if (settings.diarization_enabled) {
+    const tokenInfo = await fetchJSON("/api/hf-token");
+    const tokenInput = document.getElementById("s-hf-token");
+    if (tokenInfo.has_token) {
+      tokenInput.placeholder = tokenInfo.masked;
+    }
+  }
 
   const speakers = await fetchJSON("/api/speakers");
   const list = document.getElementById("speaker-list");
@@ -303,7 +316,25 @@ async function saveSetting(key, value) {
 
 document.getElementById("s-auto-summarize").addEventListener("change", e => saveSetting("auto_summarize", e.target.checked));
 document.getElementById("s-keep-audio").addEventListener("change", e => saveSetting("keep_audio", e.target.checked));
-document.getElementById("s-manage-ollama").addEventListener("change", e => saveSetting("manage_ollama", e.target.checked));
+document.getElementById("s-diarization-enabled").addEventListener("change", e => {
+  saveSetting("diarization_enabled", e.target.checked);
+  const hfRow = document.getElementById("hf-token-row");
+  if (hfRow) hfRow.style.display = e.target.checked ? "flex" : "none";
+});
+
+// HF token save on blur
+document.getElementById("s-hf-token").addEventListener("change", async (e) => {
+  const token = e.target.value.trim();
+  if (token) {
+    await fetch("/api/hf-token", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+    e.target.value = "";
+    e.target.placeholder = `${token.slice(0, 5)}...${token.slice(-4)}`;
+  }
+});
 
 document.getElementById("settings-btn").addEventListener("click", () => {
   if (settingsOpen) {

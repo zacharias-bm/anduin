@@ -65,13 +65,20 @@
           </div>
 
           <div class="settings-section">
-            <h3>System</h3>
+            <h3>Speaker Diarization</h3>
             <div class="setting-row">
               <div class="setting-info">
-                <div class="setting-label">Manage Ollama</div>
-                <div class="setting-desc">Automatically start and stop Ollama with Anduin</div>
+                <div class="setting-label">Enable diarization</div>
+                <div class="setting-desc">Identify and label individual speakers (requires HuggingFace token and pyannote license)</div>
               </div>
-              <label class="toggle"><input type="checkbox" id="s-manage-ollama"><span class="toggle-slider"></span></label>
+              <label class="toggle"><input type="checkbox" id="s-diarization-enabled"><span class="toggle-slider"></span></label>
+            </div>
+            <div id="hf-token-row" class="setting-row" style="display:none">
+              <div class="setting-info">
+                <div class="setting-label">HuggingFace token</div>
+                <div class="setting-desc">A Read token from <a href="https://huggingface.co/settings/tokens" target="_blank">huggingface.co</a>. You must also accept the <a href="https://huggingface.co/pyannote/speaker-diarization-3.1" target="_blank">pyannote license</a>.</div>
+              </div>
+              <input type="password" id="s-hf-token" placeholder="hf_..." spellcheck="false" autocomplete="off">
             </div>
           </div>
 

@@ -84,8 +84,15 @@ class _Handler(BaseHTTPRequestHandler):
             self._json({
                 "auto_summarize": store.get_config("auto_summarize", True),
                 "keep_audio": store.get_config("keep_audio", False),
-                "manage_ollama": store.get_config("manage_ollama", True),
+                "diarization_enabled": store.get_config("diarization_enabled", False),
             })
+
+        elif path == "/api/hf-token":
+            from anduin.setup.models import get_hf_token
+            token = get_hf_token() or ""
+            # Return masked version for display
+            masked = f"{token[:5]}...{token[-4:]}" if len(token) > 12 else ("Set" if token else "")
+            self._json({"has_token": bool(token), "masked": masked})
 
         elif path == "/api/speakers":
             self._json(store.get_speaker_names())
@@ -141,6 +148,16 @@ class _Handler(BaseHTTPRequestHandler):
             for sid, name in body.items():
                 store.set_speaker_name(sid, name)
             self._json({"ok": True})
+
+        elif path == "/api/hf-token":
+            body = json.loads(self._read_body())
+            token = body.get("token", "").strip()
+            if token:
+                import keyring
+                keyring.set_password("Anduin", "huggingface_token", token)
+                self._json({"ok": True})
+            else:
+                self._json({"error": "empty token"}, 400)
 
         else:
             self._json({"error": "not found"}, 404)

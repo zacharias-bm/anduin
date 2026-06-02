@@ -47,9 +47,15 @@ def run(
             shutil.copy2(audio_path, dest)
         audio_path = dest
 
-    _p("diarize", "Identifying speakers...")
-    diarization = diarize(audio_path)
-    print(f"[pipeline] diarize: found {len(diarization)} segments", flush=True)
+    diarization_enabled = get_config("diarization_enabled", False)
+
+    if diarization_enabled:
+        _p("diarize", "Identifying speakers...")
+        diarization = diarize(audio_path)
+        print(f"[pipeline] diarize: found {len(diarization)} segments", flush=True)
+    else:
+        diarization = []
+        print("[pipeline] diarize: skipped (disabled)", flush=True)
 
     _p("transcribe", "Transcribing...")
     transcript = transcribe(audio_path, model_size=whisper_model)

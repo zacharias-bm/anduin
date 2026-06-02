@@ -177,7 +177,10 @@ class AnduinApp(rumps.App):
             return
         # Save to a temp path; meeting dir is created after the user names the meeting
         self._tmp_audio = store.APP_DIR / "recording_tmp.wav"
-        self._recorder.start(device=device_for_mode(mode))
+        if mode == "digital":
+            self._recorder.start(mode="digital")
+        else:
+            self._recorder.start(device=device_for_mode(mode), mode="inperson")
         self._pulse_timer.start()
         self.menu["Record Meeting…"].set_callback(None)
         self.menu["Stop Recording"].set_callback(self._stop_recording)
@@ -302,8 +305,6 @@ class AnduinApp(rumps.App):
 
     def _start_ollama_async(self):
         def _run():
-            if not store.get_config("manage_ollama", True):
-                return
             try:
                 import time
                 time.sleep(3)  # let the app finish launching first
@@ -317,8 +318,6 @@ class AnduinApp(rumps.App):
     def _stop_ollama(self):
         """Stop Ollama if we started it. No model to unload — keep_alive=0
         ensures models are freed immediately after each summarization."""
-        if not store.get_config("manage_ollama", True):
-            return
         try:
             ollama.stop_server()
             print("[ollama] stopped", flush=True)

@@ -321,6 +321,30 @@ html, body {
   line-height: 1.4;
 }
 
+.setting-desc a {
+  color: var(--color-accent, #4a90d9);
+  text-decoration: none;
+}
+.setting-desc a:hover {
+  text-decoration: underline;
+}
+
+#s-hf-token {
+  font-family: 'Geist Mono', monospace;
+  font-size: 12px;
+  padding: 6px 10px;
+  border: 1px solid rgba(128,128,128,0.2);
+  border-radius: 6px;
+  background: rgba(128,128,128,0.06);
+  color: var(--text-primary);
+  width: 200px;
+  flex-shrink: 0;
+}
+#s-hf-token:focus {
+  outline: none;
+  border-color: rgba(128,128,128,0.4);
+}
+
 /* Toggle switch */
 .toggle {
   position: relative;

@@ -33,8 +33,7 @@ def open_settings():
 
 def _run_settings():
     from anduin.capture.devices import (
-        DIGITAL_KEY, INPERSON_KEY, find_digital_device,
-        list_input_devices, system_default_input,
+        INPERSON_KEY, list_input_devices,
     )
     from anduin.setup import models
     from anduin.storage import store
@@ -43,7 +42,7 @@ def _run_settings():
     # choose from list supports many items (no 3-button limit)
     section = _ask_list(
         "Anduin Settings — choose a section:",
-        ["Audio Devices", "Speaker Names", "HuggingFace Token", "Ollama Management", "Audio Storage"],
+        ["Audio Devices", "Speaker Names", "HuggingFace Token", "Audio Storage"],
     )
     if not section:
         return
@@ -57,15 +56,9 @@ def _run_settings():
 
         cur_inp = get_config(INPERSON_KEY)
         cur_inp_label = next((n for n in names if n.startswith(f"{cur_inp}:")), names[0])
-        new_inp = _ask_list("In-Person device (mic only):", names, default=cur_inp_label)
+        new_inp = _ask_list("Microphone device (for in-person meetings):", names, default=cur_inp_label)
         if new_inp:
             set_config(INPERSON_KEY, int(new_inp.split(":")[0]))
-
-        cur_dig = get_config(DIGITAL_KEY)
-        cur_dig_label = next((n for n in names if n.startswith(f"{cur_dig}:")), names[0])
-        new_dig = _ask_list("Digital device (mic + BlackHole):", names, default=cur_dig_label)
-        if new_dig:
-            set_config(DIGITAL_KEY, int(new_dig.split(":")[0]))
 
         _alert("Audio device settings saved.")
 
@@ -86,21 +79,6 @@ def _run_settings():
             import keyring
             keyring.set_password("Anduin", "huggingface_token", new_token)
             _alert("Token updated.")
-
-    elif section == "Ollama Management":
-        current = get_config("manage_ollama", True)
-        label = "ON — Anduin starts/stops Ollama automatically" if current else "OFF — you manage Ollama yourself"
-        choice = _ask_choice(
-            f"Auto-manage Ollama?\n\nCurrently: {label}",
-            buttons=["Cancel", "Turn Off", "Turn On"] if current else ["Cancel", "Turn On", "Turn Off"],
-            default="Turn Off" if current else "Turn On",
-        )
-        if choice == "Turn On":
-            set_config("manage_ollama", True)
-            _alert("Ollama will be started/stopped automatically with Anduin.")
-        elif choice == "Turn Off":
-            set_config("manage_ollama", False)
-            _alert("Ollama will not be managed by Anduin. Start and stop it yourself.")
 
     elif section == "Audio Storage":
         current = get_config("keep_audio", False)

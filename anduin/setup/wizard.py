@@ -8,7 +8,7 @@ from tkinter import ttk
 from anduin.hardware.detect import detect as detect_hardware
 from anduin.setup import models, ollama
 
-STEPS = ["Hardware", "Whisper", "Diarization", "Ollama", "BlackHole", "Done"]
+STEPS = ["Hardware", "Whisper", "Ollama", "Permissions", "Done"]
 
 BG = "white"
 ACCENT = "#1a1a2e"
@@ -87,8 +87,8 @@ class WizardApp(tk.Tk):
         self._back_btn.config(state="normal" if index > 0 else "disabled")
         self._next_btn.config(text="Continue", command=self._go_next, state="normal")
 
-        [self._step_hardware, self._step_whisper, self._step_diarization,
-         self._step_ollama, self._step_blackhole, self._step_done][index]()
+        [self._step_hardware, self._step_whisper,
+         self._step_ollama, self._step_screen_recording, self._step_done][index]()
 
     def _go_next(self):
         if self._step < len(STEPS) - 1:
@@ -320,46 +320,55 @@ class WizardApp(tk.Tk):
 
         threading.Thread(target=_run, daemon=True).start()
 
-    def _step_blackhole(self):
+    def _step_screen_recording(self):
         _h2(self._body, "Digital Meetings (Optional)")
         _body(self._body, "To record Zoom, Teams, or any app's audio alongside your mic,\n"
-              "install BlackHole — a free virtual audio driver.")
+              "Anduin uses macOS Screen Recording to capture system audio.")
         _spacer(self._body, 8)
-        _body(self._body, "Setup steps:", muted=False)
+        _body(self._body, "No screen content is recorded — only audio is captured.", muted=True)
+        _spacer(self._body, 8)
+
+        status_var = tk.StringVar(value="")
+        tk.Label(self._body, textvariable=status_var, bg=BG, fg="#333",
+                 font=("SF Pro Text", 11)).pack(anchor="w", pady=(0, 8))
+
+        def _check():
+            try:
+                from anduin.capture.system_audio import has_permission
+                if has_permission():
+                    status_var.set("Permission granted.")
+                else:
+                    status_var.set("Permission not yet granted. Click the button below.")
+            except Exception as e:
+                status_var.set(f"Could not check: {e}")
+
+        def _request():
+            status_var.set("Requesting permission… A macOS dialog should appear.")
+            def _run():
+                try:
+                    from anduin.capture.system_audio import request_permission
+                    granted = request_permission()
+                    self.after(0, lambda: status_var.set(
+                        "Permission granted." if granted
+                        else "Permission denied. Grant it in System Settings → Privacy & Security → Screen Recording."
+                    ))
+                except Exception as e:
+                    self.after(0, lambda: status_var.set(f"Error: {e}"))
+            threading.Thread(target=_run, daemon=True).start()
+
+        ttk.Button(self._body, text="Grant Screen Recording Permission",
+                   command=_request).pack(anchor="w", pady=2)
         _spacer(self._body, 4)
-
-        steps = [
-            ("1", "Download and install BlackHole 2ch",
-             "https://existential.audio/blackhole/"),
-            ("2", "Open Audio MIDI Setup and create a Multi-Output Device\n"
-             "   combining BlackHole + your speakers",
-             None),
-            ("3", "Set that Multi-Output Device as your system output in\n"
-             "   System Settings → Sound",
-             None),
-        ]
-        for n, label, url in steps:
-            row = tk.Frame(self._body, bg=BG)
-            row.pack(fill="x", pady=3)
-            tk.Label(row, text=n, font=("SF Pro Text", 11, "bold"),
-                     bg="#888", fg="white", width=2, padx=4).pack(side="left")
-            tk.Label(row, text="  ", bg=BG).pack(side="left")
-            if url:
-                lnk = tk.Label(row, text=label, font=("SF Pro Text", 11),
-                               bg=BG, fg="#4a90d9", cursor="hand2", justify="left")
-                lnk.pack(side="left")
-                lnk.bind("<Button-1>", lambda _e, u=url: _open(u))
-            else:
-                tk.Label(row, text=label, font=("SF Pro Text", 11),
-                         bg=BG, fg="#333", justify="left").pack(side="left")
-
-        _spacer(self._body, 8)
-        ttk.Button(self._body, text="Open Audio MIDI Setup",
+        ttk.Button(self._body, text="Open System Settings",
                    command=lambda: subprocess.run(
-                       ["open", "/System/Applications/Utilities/Audio MIDI Setup.app"]
+                       ["open", "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"]
                    )).pack(anchor="w", pady=2)
-        _spacer(self._body, 4)
-        _body(self._body, "You can skip this step and configure it later in Settings.", muted=True)
+
+        _spacer(self._body, 8)
+        _body(self._body, "You can skip this step — it's only needed for digital meetings.\n"
+              "In-person meetings use only the microphone and work without this.", muted=True)
+
+        _check()
 
     def _step_done(self):
         _h2(self._body, "All Set!")
@@ -384,11 +393,7 @@ def is_setup_complete() -> bool:
     since those are started later by the app.
     """
     hw = detect_hardware()
-    if not models.get_hf_token():
-        return False
     if not models.whisper_is_downloaded(hw["whisper_model"]):
-        return False
-    if not models.pyannote_is_downloaded():
         return False
     if not ollama.is_installed():
         return False
