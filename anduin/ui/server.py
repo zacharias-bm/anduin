@@ -88,10 +88,15 @@ class _Handler(BaseHTTPRequestHandler):
                 "diarization_enabled": store.get_config("diarization_enabled", False),
             })
 
+        elif path == "/api/devices":
+            from anduin.capture.devices import list_input_devices, INPERSON_KEY
+            devices = list_input_devices()
+            stored = store.get_config(INPERSON_KEY)
+            self._json({"devices": devices, "selected": stored})
+
         elif path == "/api/hf-token":
             from anduin.setup.models import get_hf_token
             token = get_hf_token() or ""
-            # Return masked version for display
             masked = f"{token[:5]}...{token[-4:]}" if len(token) > 12 else ("Set" if token else "")
             self._json({"has_token": bool(token), "masked": masked})
 

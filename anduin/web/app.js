@@ -344,33 +344,13 @@ async function loadSettingsPanel() {
     }
   }
 
-  const speakers = await fetchJSON("/api/speakers");
-  const list = document.getElementById("speaker-list");
-  const entries = Object.entries(speakers);
-  if (!entries.length) {
-    list.innerHTML = '<div class="speaker-empty">No speakers recognized yet. They will appear here after your first meeting.</div>';
-  } else {
-    list.innerHTML = entries.map(([sid, name]) =>
-      `<div class="speaker-row">
-        <span class="speaker-id">${esc(sid)}</span>
-        <input class="speaker-name-input" data-sid="${esc(sid)}" value="${esc(name)}" placeholder="Enter name...">
-      </div>`
+  // Load audio devices
+  const deviceData = await fetchJSON("/api/devices");
+  const micSelect = document.getElementById("s-mic-device");
+  micSelect.innerHTML = '<option value="">System default</option>' +
+    deviceData.devices.map(d =>
+      `<option value="${d.index}" ${d.index === deviceData.selected ? "selected" : ""}>${esc(d.name)}</option>`
     ).join("");
-
-    list.querySelectorAll(".speaker-name-input").forEach(input => {
-      input.addEventListener("change", async () => {
-        const sid = input.dataset.sid;
-        const name = input.value.trim();
-        if (name) {
-          await fetch("/api/speakers", {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ [sid]: name }),
-          });
-        }
-      });
-    });
-  }
 }
 
 async function saveSetting(key, value) {
@@ -402,6 +382,11 @@ document.getElementById("s-hf-token").addEventListener("change", async (e) => {
     e.target.value = "";
     e.target.placeholder = `${token.slice(0, 5)}...${token.slice(-4)}`;
   }
+});
+
+document.getElementById("s-mic-device").addEventListener("change", e => {
+  const val = e.target.value;
+  saveSetting("device_inperson", val === "" ? null : parseInt(val));
 });
 
 document.getElementById("settings-btn").addEventListener("click", () => {
