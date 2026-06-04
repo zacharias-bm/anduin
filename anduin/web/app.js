@@ -16,7 +16,8 @@ function formatDuration(secs) {
   const m = Math.floor(secs / 60);
   const h = Math.floor(m / 60);
   if (h > 0) return `${h}h ${m % 60}m`;
-  return `${m}m`;
+  if (m > 0) return `${m}m`;
+  return "< 1m";
 }
 
 function formatTimestamp(secs) {
@@ -497,6 +498,18 @@ function connectSSE() {
     loadMeetings();
   });
 
+  let recordingTimer = null;
+  let recordingStartTime = null;
+
+  function updateRecordingTime() {
+    if (!recordingStartTime) return;
+    const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+    const m = Math.floor(elapsed / 60);
+    const s = elapsed % 60;
+    const timeStr = `${m}:${s.toString().padStart(2, "0")}`;
+    if (statusText) statusText.textContent = `Recording · ${timeStr}`;
+  }
+
   es.addEventListener("recording", (e) => {
     const data = JSON.parse(e.data);
     if (recordBtn) {
@@ -509,9 +522,13 @@ function connectSSE() {
       }
     }
     if (data.active) {
+      recordingStartTime = Date.now();
       if (statusBar) statusBar.style.display = "flex";
-      if (statusText) statusText.textContent = "Recording...";
+      updateRecordingTime();
+      recordingTimer = setInterval(updateRecordingTime, 1000);
     } else {
+      recordingStartTime = null;
+      if (recordingTimer) { clearInterval(recordingTimer); recordingTimer = null; }
       if (statusBar) statusBar.style.display = "none";
     }
   });

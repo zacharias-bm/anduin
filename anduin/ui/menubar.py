@@ -159,6 +159,7 @@ class AnduinApp(rumps.App):
         else:
             self._recorder.start(device=device_for_mode(mode), mode="inperson")
         self._pulse_timer.start()
+        self.title = "REC"
         self.menu["Record Meeting…"].set_callback(None)
         self.menu["Stop Recording"].set_callback(self._stop_recording)
         self._event_bus.publish("recording", {"active": True})
