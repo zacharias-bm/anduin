@@ -84,6 +84,7 @@ class _Handler(BaseHTTPRequestHandler):
             self._json({
                 "auto_summarize": store.get_config("auto_summarize", True),
                 "keep_audio": store.get_config("keep_audio", False),
+                "title_style": store.get_config("title_style", "datetime"),
                 "diarization_enabled": store.get_config("diarization_enabled", False),
             })
 
@@ -224,18 +225,6 @@ class _Handler(BaseHTTPRequestHandler):
         elif path == "/api/stop":
             if hasattr(self.server, "_app"):
                 self.server._app._cmd_queue.put(("stop", None))
-                self._json({"ok": True})
-            else:
-                self._json({"error": "app not linked"}, 500)
-        elif path == "/api/name-recording":
-            if hasattr(self.server, "_app"):
-                body = {}
-                try:
-                    body = json.loads(self._read_body())
-                except Exception:
-                    pass
-                title = body.get("title", "")
-                self.server._app._cmd_queue.put(("name_recording", title))
                 self._json({"ok": True})
             else:
                 self._json({"error": "app not linked"}, 500)

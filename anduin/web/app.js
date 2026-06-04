@@ -328,6 +328,7 @@ async function loadSettingsPanel() {
   const settings = await fetchJSON("/api/settings");
   document.getElementById("s-auto-summarize").checked = settings.auto_summarize;
   document.getElementById("s-keep-audio").checked = settings.keep_audio;
+  document.getElementById("s-title-style").value = settings.title_style || "datetime";
   document.getElementById("s-diarization-enabled").checked = settings.diarization_enabled;
 
   // Show/hide HF token row based on diarization toggle
@@ -382,6 +383,7 @@ async function saveSetting(key, value) {
 
 document.getElementById("s-auto-summarize").addEventListener("change", e => saveSetting("auto_summarize", e.target.checked));
 document.getElementById("s-keep-audio").addEventListener("change", e => saveSetting("keep_audio", e.target.checked));
+document.getElementById("s-title-style").addEventListener("change", e => saveSetting("title_style", e.target.value));
 document.getElementById("s-diarization-enabled").addEventListener("change", e => {
   saveSetting("diarization_enabled", e.target.checked);
   const hfRow = document.getElementById("hf-token-row");
@@ -433,14 +435,8 @@ document.getElementById("modal-overlay").addEventListener("click", (e) => {
   if (e.target === e.currentTarget) hideRecordModal();
 });
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") {
-    if (document.getElementById("modal-overlay").style.display !== "none") {
-      hideRecordModal();
-    }
-    if (document.getElementById("name-modal-overlay").style.display !== "none") {
-      const input = document.getElementById("name-modal-input");
-      submitMeetingName(input.placeholder);
-    }
+  if (e.key === "Escape" && document.getElementById("modal-overlay").style.display !== "none") {
+    hideRecordModal();
   }
 });
 
@@ -454,55 +450,6 @@ document.querySelectorAll(".modal-option").forEach(btn => {
       body: JSON.stringify({ mode }),
     });
   });
-});
-
-// ── Name modal ─────────────────────────────────────────
-
-function showNameModal(defaultTitle) {
-  const overlay = document.getElementById("name-modal-overlay");
-  const input = document.getElementById("name-modal-input");
-  input.value = "";
-  input.placeholder = defaultTitle || "Meeting title...";
-  overlay.style.display = "flex";
-  setTimeout(() => input.focus(), 100);
-}
-
-function hideNameModal() {
-  document.getElementById("name-modal-overlay").style.display = "none";
-}
-
-async function submitMeetingName(title) {
-  hideNameModal();
-  await fetch("/api/name-recording", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title }),
-  });
-}
-
-document.getElementById("name-modal-save").addEventListener("click", () => {
-  const input = document.getElementById("name-modal-input");
-  submitMeetingName(input.value.trim() || input.placeholder);
-});
-
-document.getElementById("name-modal-skip").addEventListener("click", () => {
-  const input = document.getElementById("name-modal-input");
-  submitMeetingName(input.placeholder);
-});
-
-document.getElementById("name-modal-input").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    const input = e.target;
-    submitMeetingName(input.value.trim() || input.placeholder);
-  }
-});
-
-document.getElementById("name-modal-overlay").addEventListener("click", (e) => {
-  if (e.target === e.currentTarget) {
-    const input = document.getElementById("name-modal-input");
-    submitMeetingName(input.placeholder);
-  }
 });
 
 // Record button in sidebar

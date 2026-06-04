@@ -66,8 +66,6 @@ class AnduinApp(rumps.App):
                     self._start_recording(args or "inperson")
                 elif cmd == "stop":
                     self._stop_recording(None)
-                elif cmd == "name_recording":
-                    self._name_recording(args or "")
         except queue.Empty:
             pass
 
@@ -193,28 +191,11 @@ class AnduinApp(rumps.App):
         self._server._app_status = {"recording": False, "pipeline_stage": None}
 
         def _finish():
-            # Stop the recorder and save file (can be slow)
             tmp_path = self._recorder.stop(self._tmp_audio)
-
-            # Store the audio path; the naming modal will provide the title
-            self._pending_audio = tmp_path
-            default_title = datetime.now().strftime("%Y-%m-%d %H:%M")
-
-            # Show naming modal in the web UI
-            self._window.open()
-            self._window.evaluate_js(f"showNameModal('{default_title}')")
+            title = datetime.now().strftime("%Y-%m-%d %H:%M")
+            self._run_pipeline_async(tmp_path, title)
 
         threading.Thread(target=_finish, daemon=True).start()
-
-    def _name_recording(self, title: str):
-        """Called when the user submits a title from the naming modal."""
-        if not hasattr(self, '_pending_audio') or not self._pending_audio:
-            return
-        default_title = datetime.now().strftime("%Y-%m-%d %H:%M")
-        final_title = title.strip() if title.strip() else default_title
-        audio_path = self._pending_audio
-        self._pending_audio = None
-        self._run_pipeline_async(audio_path, final_title)
 
     # ── Pipeline ──────────────────────────────────────────────────────────────
 

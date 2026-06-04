@@ -8,7 +8,7 @@ from anduin.diarization.diarizer import diarize
 from anduin.hardware.detect import detect as detect_hardware
 from anduin.merge.aligner import align, write_transcript
 from anduin.storage.store import get_config, get_speaker_names, meeting_dir, save_summary
-from anduin.summarization.engine import summarize
+from anduin.summarization.engine import generate_title, summarize
 from anduin.transcription.whisper import transcribe
 
 ProgressCallback = Callable[[str, str], None]  # (stage, message)
@@ -65,6 +65,15 @@ def run(
     segments = align(diarization, transcript, speaker_names=get_speaker_names())
     print(f"[pipeline] align: produced {len(segments)} merged segments", flush=True)
     write_transcript(segments, out_dir)
+
+    # Generate content-based title if configured
+    title_style = get_config("title_style", "datetime")
+    if title_style == "content" and segments:
+        _p("title", "Generating title...")
+        content_title = generate_title(segments, llm_model)
+        if content_title:
+            title = content_title
+            print(f"[pipeline] title: {title}", flush=True)
 
     if auto_summarize:
         _p("summarize", "Generating summary...")

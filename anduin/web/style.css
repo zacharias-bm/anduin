@@ -348,6 +348,22 @@ html, body {
   line-height: 1.4;
 }
 
+.setting-select {
+  font-family: inherit;
+  font-size: 12px;
+  padding: 6px 10px;
+  border: 1px solid rgba(128,128,128,0.2);
+  border-radius: 6px;
+  background: rgba(128,128,128,0.06);
+  color: var(--color-stone);
+  flex-shrink: 0;
+  cursor: pointer;
+  outline: none;
+}
+.setting-select:focus {
+  border-color: rgba(128,128,128,0.4);
+}
+
 .setting-desc a {
   color: var(--color-accent, #4a90d9);
   text-decoration: none;
@@ -778,80 +794,6 @@ html, body {
 #modal-cancel:hover {
   background: rgba(0, 0, 0, 0.03);
   color: var(--color-stone);
-}
-
-/* Name modal */
-#name-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
-}
-
-#name-modal-input {
-  width: 100%;
-  padding: 12px 14px;
-  font-family: inherit;
-  font-size: 15px;
-  font-weight: 500;
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  background: white;
-  color: var(--color-stone);
-  outline: none;
-  margin-bottom: 16px;
-  transition: border-color 0.15s;
-}
-
-#name-modal-input:focus {
-  border-color: var(--color-navy);
-}
-
-#name-modal-input::placeholder {
-  color: var(--color-slate);
-  opacity: 0.5;
-}
-
-#name-modal-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.name-modal-btn {
-  width: 100%;
-  padding: 10px;
-  border-radius: 8px;
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-  border: 1px solid var(--color-border);
-  background: transparent;
-  color: var(--color-slate);
-}
-
-.name-modal-btn:hover {
-  background: rgba(0, 0, 0, 0.03);
-  color: var(--color-stone);
-}
-
-.name-modal-btn-primary {
-  background: var(--color-navy);
-  border-color: var(--color-navy);
-  color: white;
-}
-
-.name-modal-btn-primary:hover {
-  opacity: 0.9;
-  background: var(--color-navy);
-  color: white;
 }
 
 ::-webkit-scrollbar {
