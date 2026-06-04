@@ -21,7 +21,6 @@ from anduin.ui.server import EventBus, start_server
 from anduin.ui.webview import AnduinWindow
 from anduin.ui.windows import _notify, prompt_speaker_names
 
-MAX_RECENT = 5
 
 
 class AnduinApp(rumps.App):
@@ -67,8 +66,6 @@ class AnduinApp(rumps.App):
                     self._start_recording(args or "inperson")
                 elif cmd == "stop":
                     self._stop_recording(None)
-                elif cmd == "refresh_recent":
-                    self._refresh_recent()
         except queue.Empty:
             pass
 
@@ -143,21 +140,6 @@ class AnduinApp(rumps.App):
     def _open_window(self, _):
         self._window.open()
 
-    def _refresh_recent(self):
-        meetings = store.list_meetings(limit=MAX_RECENT)
-        recent_menu = self.menu["Recent Meetings"]
-        if recent_menu._menu is not None:
-            recent_menu.clear()
-        if not meetings:
-            recent_menu.add(rumps.MenuItem("No meetings yet", callback=None))
-        else:
-            for m in meetings:
-                title = f"{m['date']}  {m['title']}"
-                path = m["path"]
-                recent_menu.add(rumps.MenuItem(title, callback=lambda _, p=path: _open_folder(p)))
-            recent_menu.add(None)
-            recent_menu.add(rumps.MenuItem("Show All…", callback=lambda _: _open_folder(str(store.MEETINGS_DIR))))
-
     # ── Recording ─────────────────────────────────────────────────────────────
 
     @rumps.clicked("Record Meeting…")
@@ -222,28 +204,6 @@ class AnduinApp(rumps.App):
 
         threading.Thread(target=_finish, daemon=True).start()
 
-    # ── File processing ───────────────────────────────────────────────────────
-
-    @rumps.clicked("Process Audio File…")
-    def _process_file(self, _):
-        result = subprocess.run(
-            ["osascript", "-e",
-             'POSIX path of (choose file with prompt "Select audio or video file:" '
-             'of type {"wav","mp3","m4a","mp4","mov","mkv","webm","m4v"})'],
-            capture_output=True, text=True,
-        )
-        path_str = result.stdout.strip()
-        if not path_str:
-            return
-
-        audio_path = Path(path_str)
-        default_title = datetime.now().strftime("%Y-%m-%d %H:%M")
-        title = _ask_text("Meeting title:", default=default_title)
-        if title is None:
-            return
-
-        self._run_pipeline_async(audio_path, title)
-
     # ── Pipeline ──────────────────────────────────────────────────────────────
 
     def _run_pipeline_async(self, audio_path: Path, title: str):
@@ -276,8 +236,6 @@ class AnduinApp(rumps.App):
                         tmp.unlink()
                     except Exception:
                         pass
-
-                self._refresh_recent()
 
             except Exception as e:
                 import traceback
@@ -354,10 +312,6 @@ def _ask_choice(prompt: str, buttons: list[str], default: str) -> str | None:
     if out.startswith("button returned:"):
         return out[len("button returned:"):].strip()
     return None
-
-
-def _open_folder(path: str):
-    subprocess.run(["open", path])
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
