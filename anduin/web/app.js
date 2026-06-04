@@ -136,10 +136,10 @@ function renderMeeting(m) {
 
   renderTranscript(m.transcript || []);
 
-  // Meeting actions
+  // Show/hide delete audio option
   const deleteAudioBtn = document.getElementById("delete-audio-btn");
   if (deleteAudioBtn) {
-    deleteAudioBtn.style.display = m.has_audio ? "inline-block" : "none";
+    deleteAudioBtn.style.display = m.has_audio ? "block" : "none";
   }
 }
 
@@ -238,38 +238,60 @@ if (summarizeBtn) {
 const deleteBtn = document.getElementById("delete-btn");
 const deleteDropdown = document.getElementById("delete-dropdown");
 
+function closeDeleteDropdown() {
+  deleteDropdown.style.display = "none";
+}
+
 deleteBtn.addEventListener("click", (e) => {
   e.stopPropagation();
   const isOpen = deleteDropdown.style.display !== "none";
   deleteDropdown.style.display = isOpen ? "none" : "block";
 });
 
-document.addEventListener("click", () => {
-  deleteDropdown.style.display = "none";
-});
+document.addEventListener("click", closeDeleteDropdown);
 
-deleteDropdown.addEventListener("click", (e) => {
+document.getElementById("delete-meeting-btn").addEventListener("click", async (e) => {
   e.stopPropagation();
+  if (!currentMeetingId) return;
+  closeDeleteDropdown();
+  try {
+    const res = await fetch(`/api/meetings/${currentMeetingId}`, { method: "DELETE" });
+    if (res.ok) {
+      currentMeetingId = null;
+      document.getElementById("meeting-view").style.display = "none";
+      document.getElementById("empty-state").style.display = "flex";
+      loadMeetings();
+      showStatusMessage("Meeting deleted");
+    }
+  } catch (err) {
+    console.error("Delete meeting failed:", err);
+  }
 });
 
-document.getElementById("delete-meeting-btn").addEventListener("click", async () => {
+document.getElementById("delete-audio-btn").addEventListener("click", async (e) => {
+  e.stopPropagation();
   if (!currentMeetingId) return;
-  deleteDropdown.style.display = "none";
-  if (!confirm("Delete this meeting and all its data? This cannot be undone.")) return;
-  await fetch(`/api/meetings/${currentMeetingId}`, { method: "DELETE" });
-  currentMeetingId = null;
-  document.getElementById("meeting-view").style.display = "none";
-  document.getElementById("empty-state").style.display = "flex";
-  loadMeetings();
+  closeDeleteDropdown();
+  try {
+    const res = await fetch(`/api/meetings/${currentMeetingId}/audio`, { method: "DELETE" });
+    if (res.ok) {
+      document.getElementById("delete-audio-btn").style.display = "none";
+      showStatusMessage("Audio recording deleted");
+    }
+  } catch (err) {
+    console.error("Delete audio failed:", err);
+  }
 });
 
-document.getElementById("delete-audio-btn").addEventListener("click", async () => {
-  if (!currentMeetingId) return;
-  deleteDropdown.style.display = "none";
-  if (!confirm("Delete the audio recording? The transcript and summary will be kept.")) return;
-  await fetch(`/api/meetings/${currentMeetingId}/audio`, { method: "DELETE" });
-  document.getElementById("delete-audio-btn").style.display = "none";
-});
+function showStatusMessage(msg) {
+  const bar = document.getElementById("status-bar");
+  const text = document.getElementById("status-text");
+  if (bar && text) {
+    text.textContent = msg;
+    bar.style.display = "flex";
+    setTimeout(() => { bar.style.display = "none"; }, 2500);
+  }
+}
 
 // Search
 let searchTimeout;
