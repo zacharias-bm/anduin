@@ -62,16 +62,13 @@
               </div>
               <label class="toggle"><input type="checkbox" id="s-keep-audio"><span class="toggle-slider"></span></label>
             </div>
-            <div class="setting-row">
-              <div class="setting-info">
-                <div class="setting-label">Meeting title</div>
-                <div class="setting-desc">How new meetings are automatically named</div>
-              </div>
-              <select id="s-title-style" class="setting-select">
-                <option value="datetime">Date and time</option>
-                <option value="content">Meeting content</option>
-              </select>
-            </div>
+          </div>
+
+          <div class="settings-section">
+            <h3>Dictionary</h3>
+            <p class="setting-desc" style="margin-bottom:12px">Add names and terms to help the transcription recognise uncommon words. One per line.</p>
+            <textarea id="s-dictionary" class="setting-textarea" rows="4" placeholder="e.g.&#10;Zacharias&#10;Norrsken&#10;BackingMinds" spellcheck="false"></textarea>
+            <button id="save-dictionary-btn" class="setting-save-btn">Save</button>
           </div>
 
           <div class="settings-section">

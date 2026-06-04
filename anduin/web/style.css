@@ -348,6 +348,44 @@ html, body {
   line-height: 1.4;
 }
 
+.setting-textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 10px 12px;
+  border: 1px solid rgba(128,128,128,0.2);
+  border-radius: 8px;
+  background: rgba(128,128,128,0.04);
+  color: var(--color-stone);
+  outline: none;
+  resize: vertical;
+  line-height: 1.6;
+}
+.setting-textarea:focus {
+  border-color: rgba(128,128,128,0.4);
+}
+.setting-textarea::placeholder {
+  color: var(--color-slate);
+  opacity: 0.5;
+}
+
+.setting-save-btn {
+  margin-top: 8px;
+  padding: 6px 16px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-navy);
+  color: white;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.setting-save-btn:hover {
+  opacity: 0.9;
+}
+
 .setting-select {
   font-family: inherit;
   font-size: 12px;

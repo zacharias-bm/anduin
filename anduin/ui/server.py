@@ -84,9 +84,11 @@ class _Handler(BaseHTTPRequestHandler):
             self._json({
                 "auto_summarize": store.get_config("auto_summarize", True),
                 "keep_audio": store.get_config("keep_audio", False),
-                "title_style": store.get_config("title_style", "datetime"),
                 "diarization_enabled": store.get_config("diarization_enabled", False),
             })
+
+        elif path == "/api/dictionary":
+            self._json({"words": store.get_config("dictionary", [])})
 
         elif path == "/api/devices":
             from anduin.capture.devices import list_input_devices, INPERSON_KEY
@@ -150,9 +152,14 @@ class _Handler(BaseHTTPRequestHandler):
 
         elif path == "/api/speakers":
             body = json.loads(self._read_body())
-            # Expects {"speaker_id": "New Name", ...}
             for sid, name in body.items():
                 store.set_speaker_name(sid, name)
+            self._json({"ok": True})
+
+        elif path == "/api/dictionary":
+            body = json.loads(self._read_body())
+            words = body.get("words", [])
+            store.set_config("dictionary", words)
             self._json({"ok": True})
 
         elif path == "/api/hf-token":

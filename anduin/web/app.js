@@ -328,8 +328,11 @@ async function loadSettingsPanel() {
   const settings = await fetchJSON("/api/settings");
   document.getElementById("s-auto-summarize").checked = settings.auto_summarize;
   document.getElementById("s-keep-audio").checked = settings.keep_audio;
-  document.getElementById("s-title-style").value = settings.title_style || "datetime";
   document.getElementById("s-diarization-enabled").checked = settings.diarization_enabled;
+
+  // Load dictionary
+  const dictData = await fetchJSON("/api/dictionary");
+  document.getElementById("s-dictionary").value = (dictData.words || []).join("\n");
 
   // Show/hide HF token row based on diarization toggle
   const hfRow = document.getElementById("hf-token-row");
@@ -363,7 +366,6 @@ async function saveSetting(key, value) {
 
 document.getElementById("s-auto-summarize").addEventListener("change", e => saveSetting("auto_summarize", e.target.checked));
 document.getElementById("s-keep-audio").addEventListener("change", e => saveSetting("keep_audio", e.target.checked));
-document.getElementById("s-title-style").addEventListener("change", e => saveSetting("title_style", e.target.value));
 document.getElementById("s-diarization-enabled").addEventListener("change", e => {
   saveSetting("diarization_enabled", e.target.checked);
   const hfRow = document.getElementById("hf-token-row");
@@ -382,6 +384,17 @@ document.getElementById("s-hf-token").addEventListener("change", async (e) => {
     e.target.value = "";
     e.target.placeholder = `${token.slice(0, 5)}...${token.slice(-4)}`;
   }
+});
+
+document.getElementById("save-dictionary-btn").addEventListener("click", async () => {
+  const text = document.getElementById("s-dictionary").value;
+  const words = text.split("\n").map(w => w.trim()).filter(Boolean);
+  await fetch("/api/dictionary", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ words }),
+  });
+  showStatusMessage("Dictionary saved");
 });
 
 document.getElementById("s-mic-device").addEventListener("change", e => {

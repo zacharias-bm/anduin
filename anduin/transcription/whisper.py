@@ -22,14 +22,22 @@ def unload():
     gc.collect()
 
 
-def transcribe(audio_path: Path, model_size: str = "large-v3") -> list[dict]:
+def transcribe(audio_path: Path, model_size: str = "large-v3", dictionary: list[str] | None = None) -> list[dict]:
     """Returns [{start, end, text, words}] with word-level timestamps."""
     _load(model_size)
+
+    # Build initial prompt from personal dictionary to guide recognition
+    # of uncommon names and terms. Whisper uses this as context.
+    initial_prompt = None
+    if dictionary:
+        initial_prompt = ", ".join(dictionary)
+
     segments, _ = _model.transcribe(
         str(audio_path),
         language=None,       # auto-detect Swedish / English
         word_timestamps=True,
         vad_filter=True,     # use built-in Silero VAD for robustness
+        initial_prompt=initial_prompt,
     )
     return [
         {
