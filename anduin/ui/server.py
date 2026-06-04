@@ -227,6 +227,18 @@ class _Handler(BaseHTTPRequestHandler):
                 self._json({"ok": True})
             else:
                 self._json({"error": "app not linked"}, 500)
+        elif path == "/api/name-recording":
+            if hasattr(self.server, "_app"):
+                body = {}
+                try:
+                    body = json.loads(self._read_body())
+                except Exception:
+                    pass
+                title = body.get("title", "")
+                self.server._app._cmd_queue.put(("name_recording", title))
+                self._json({"ok": True})
+            else:
+                self._json({"error": "app not linked"}, 500)
         else:
             self._json({"error": "not found"}, 404)
 

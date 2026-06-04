@@ -433,8 +433,14 @@ document.getElementById("modal-overlay").addEventListener("click", (e) => {
   if (e.target === e.currentTarget) hideRecordModal();
 });
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && document.getElementById("modal-overlay").style.display !== "none") {
-    hideRecordModal();
+  if (e.key === "Escape") {
+    if (document.getElementById("modal-overlay").style.display !== "none") {
+      hideRecordModal();
+    }
+    if (document.getElementById("name-modal-overlay").style.display !== "none") {
+      const input = document.getElementById("name-modal-input");
+      submitMeetingName(input.placeholder);
+    }
   }
 });
 
@@ -448,6 +454,55 @@ document.querySelectorAll(".modal-option").forEach(btn => {
       body: JSON.stringify({ mode }),
     });
   });
+});
+
+// ── Name modal ─────────────────────────────────────────
+
+function showNameModal(defaultTitle) {
+  const overlay = document.getElementById("name-modal-overlay");
+  const input = document.getElementById("name-modal-input");
+  input.value = "";
+  input.placeholder = defaultTitle || "Meeting title...";
+  overlay.style.display = "flex";
+  setTimeout(() => input.focus(), 100);
+}
+
+function hideNameModal() {
+  document.getElementById("name-modal-overlay").style.display = "none";
+}
+
+async function submitMeetingName(title) {
+  hideNameModal();
+  await fetch("/api/name-recording", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+}
+
+document.getElementById("name-modal-save").addEventListener("click", () => {
+  const input = document.getElementById("name-modal-input");
+  submitMeetingName(input.value.trim() || input.placeholder);
+});
+
+document.getElementById("name-modal-skip").addEventListener("click", () => {
+  const input = document.getElementById("name-modal-input");
+  submitMeetingName(input.placeholder);
+});
+
+document.getElementById("name-modal-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    const input = e.target;
+    submitMeetingName(input.value.trim() || input.placeholder);
+  }
+});
+
+document.getElementById("name-modal-overlay").addEventListener("click", (e) => {
+  if (e.target === e.currentTarget) {
+    const input = document.getElementById("name-modal-input");
+    submitMeetingName(input.placeholder);
+  }
 });
 
 // Record button in sidebar
