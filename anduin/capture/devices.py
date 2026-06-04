@@ -36,7 +36,15 @@ def device_for_mode(mode: str) -> int | None:
 
     stored = get_config(INPERSON_KEY)
     if stored is not None:
-        return stored
+        # Validate the stored device is a real mic, not a virtual device
+        try:
+            import sounddevice as sd
+            dev = sd.query_devices(stored)
+            name = dev["name"].lower()
+            if dev["max_input_channels"] > 0 and "blackhole" not in name:
+                return stored
+        except Exception:
+            pass
 
     d = system_default_input()
     return d["index"] if d else None
