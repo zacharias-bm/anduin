@@ -127,13 +127,15 @@ function renderMeeting(m) {
   const summarizeBtn = document.getElementById("summarize-btn");
   if (m.summary) {
     summaryBody.innerHTML = renderMarkdown(m.summary);
-    summarizeBtn.style.display = "none";
+    summarizeBtn.textContent = "Re-summarize";
   } else {
     summaryBody.innerHTML = '<span class="no-summary">No summary generated yet.</span>';
-    summarizeBtn.style.display = "inline-block";
-    summarizeBtn.disabled = false;
     summarizeBtn.textContent = "Summarize";
   }
+  summarizeBtn.disabled = false;
+
+  // Load templates into picker
+  loadTemplateSelect();
 
   renderTranscript(m.transcript || []);
 
@@ -225,13 +227,28 @@ document.getElementById("meeting-title").addEventListener("keydown", (e) => {
   }
 });
 
-// Summarize button
+// Template picker
+async function loadTemplateSelect() {
+  const data = await fetchJSON("/api/templates");
+  const select = document.getElementById("template-select");
+  select.innerHTML = data.templates.map(t =>
+    `<option value="${esc(t.id)}">${esc(t.name)}</option>`
+  ).join("");
+}
+
+// Summarize / Re-summarize button
 const summarizeBtn = document.getElementById("summarize-btn");
 if (summarizeBtn) {
   summarizeBtn.addEventListener("click", async () => {
+    if (!currentMeetingId) return;
     summarizeBtn.disabled = true;
     summarizeBtn.textContent = "Summarizing...";
-    await fetch(`/api/meetings/${currentMeetingId}/summarize`, { method: "POST" });
+    const templateId = document.getElementById("template-select").value;
+    await fetch(`/api/meetings/${currentMeetingId}/summarize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ template_id: templateId }),
+    });
   });
 }
 
@@ -347,6 +364,9 @@ async function loadSettingsPanel() {
     }
   }
 
+  // Load custom templates
+  loadCustomTemplatesEditor();
+
   // Load audio devices
   const deviceData = await fetchJSON("/api/devices");
   const micSelect = document.getElementById("s-mic-device");
@@ -390,6 +410,87 @@ document.getElementById("s-hf-token").addEventListener("change", async (e) => {
     e.target.value = "";
     e.target.placeholder = `${token.slice(0, 5)}...${token.slice(-4)}`;
   }
+});
+
+// ── Custom template editor ─────────────────────────────
+
+let _customTemplates = [];
+
+async function loadCustomTemplatesEditor() {
+  // The GET /api/templates returns {templates: [{id, name, builtin}, ...]}
+  // but doesn't include prompts for custom ones. We need those for editing.
+  // Custom templates with prompts are stored via PUT /api/templates.
+  // Read them from a dedicated endpoint.
+  const data = await fetchJSON("/api/templates?include_prompts=1");
+  _customTemplates = (data.templates || []).filter(t => !t.builtin);
+  renderCustomTemplates();
+}
+
+function renderCustomTemplates() {
+  const list = document.getElementById("custom-templates-list");
+  if (!_customTemplates.length) {
+    list.innerHTML = '<div class="setting-desc">No custom templates yet.</div>';
+    return;
+  }
+  list.innerHTML = _customTemplates.map((t, i) =>
+    `<div class="custom-template-card" data-index="${i}">
+      <input type="text" value="${esc(t.name)}" placeholder="Template name" class="ct-name">
+      <textarea class="ct-prompt" rows="3" placeholder="Your prompt... use {transcript} for the transcript">${esc(t.prompt || "")}</textarea>
+      <div class="custom-template-actions">
+        <button class="template-delete-btn" data-index="${i}">Delete</button>
+        <button class="template-save-btn" data-index="${i}">Save</button>
+      </div>
+    </div>`
+  ).join("");
+
+  list.querySelectorAll(".template-save-btn").forEach(btn => {
+    btn.addEventListener("click", () => saveCustomTemplate(parseInt(btn.dataset.index)));
+  });
+  list.querySelectorAll(".template-delete-btn").forEach(btn => {
+    btn.addEventListener("click", () => deleteCustomTemplate(parseInt(btn.dataset.index)));
+  });
+}
+
+async function saveCustomTemplate(index) {
+  const card = document.querySelectorAll(".custom-template-card")[index];
+  const name = card.querySelector(".ct-name").value.trim();
+  const prompt = card.querySelector(".ct-prompt").value.trim();
+  if (!name || !prompt) return;
+
+  _customTemplates[index] = {
+    id: _customTemplates[index].id || "custom_" + Date.now(),
+    name,
+    prompt,
+  };
+  await saveAllCustomTemplates();
+  showStatusMessage("Template saved");
+}
+
+async function deleteCustomTemplate(index) {
+  _customTemplates.splice(index, 1);
+  await saveAllCustomTemplates();
+  renderCustomTemplates();
+  showStatusMessage("Template deleted");
+}
+
+async function saveAllCustomTemplates() {
+  await fetch("/api/templates", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ templates: _customTemplates }),
+  });
+}
+
+document.getElementById("add-template-btn").addEventListener("click", () => {
+  _customTemplates.push({
+    id: "custom_" + Date.now(),
+    name: "",
+    prompt: "",
+  });
+  renderCustomTemplates();
+  // Focus the new template's name input
+  const cards = document.querySelectorAll(".custom-template-card");
+  if (cards.length) cards[cards.length - 1].querySelector(".ct-name").focus();
 });
 
 document.getElementById("save-dictionary-btn").addEventListener("click", async () => {

@@ -8,7 +8,12 @@ import requests
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
 
-HYBRID_PROMPT = """\
+# ── Built-in summary templates ────────────────────────────────────────────────
+
+BUILTIN_TEMPLATES = {
+    "standard": {
+        "name": "Standard",
+        "prompt": """\
 You are a meeting summarizer. Using the transcript below, produce a structured summary.
 
 Always include these sections:
@@ -26,29 +31,77 @@ Each item as: - [ ] <task> — **<owner>** by <deadline or "no deadline">
 Concise freeform summary of the main topics discussed.
 
 Transcript:
-{transcript}
-"""
+{transcript}""",
+    },
+    "brief": {
+        "name": "Brief",
+        "prompt": """\
+Summarize this meeting in 3-5 bullet points. Be concise. No headers, just bullets.
+
+Transcript:
+{transcript}""",
+    },
+    "action_items": {
+        "name": "Action Items Only",
+        "prompt": """\
+Extract only the action items and next steps from this meeting. Format each as:
+- [ ] <task> — **<owner>** by <deadline or "TBD">
+
+If no action items were discussed, say "No action items identified."
+
+Transcript:
+{transcript}""",
+    },
+    "narrative": {
+        "name": "Narrative",
+        "prompt": """\
+Write a concise narrative summary of this meeting in 2-3 paragraphs. \
+Use natural prose, not bullet points. Focus on what was discussed, \
+what was decided, and what happens next.
+
+Transcript:
+{transcript}""",
+    },
+}
+
+DEFAULT_TEMPLATE = "standard"
 
 
 def summarize(
     segments: list[dict],
     model: str,
-    mode: str = "hybrid",
-    template: str | None = None,
+    template_id: str = "standard",
+    custom_prompt: str | None = None,
     progress: Callable[[str], None] | None = None,
 ) -> str:
     transcript = _format_transcript(segments)
     if not transcript.strip():
         return "No speech was detected in the recording, so no summary could be generated."
 
-    if mode == "dynamic":
-        prompt = f"Summarize this meeting transcript:\n\n{transcript}"
-    elif mode == "template" and template:
-        prompt = _fill_template(template, transcript)
+    if custom_prompt:
+        # Custom template — inject transcript
+        prompt = custom_prompt.replace("{transcript}", transcript)
+    elif template_id in BUILTIN_TEMPLATES:
+        prompt = BUILTIN_TEMPLATES[template_id]["prompt"].format(transcript=transcript)
     else:
-        prompt = HYBRID_PROMPT.format(transcript=transcript)
+        prompt = BUILTIN_TEMPLATES[DEFAULT_TEMPLATE]["prompt"].format(transcript=transcript)
 
     return _call_ollama(model, prompt, progress)
+
+
+def get_templates(custom_templates: list[dict] | None = None) -> list[dict]:
+    """Return all available templates (built-in + custom)."""
+    templates = [
+        {"id": tid, "name": t["name"], "builtin": True}
+        for tid, t in BUILTIN_TEMPLATES.items()
+    ]
+    for ct in (custom_templates or []):
+        templates.append({
+            "id": ct.get("id", ""),
+            "name": ct.get("name", "Custom"),
+            "builtin": False,
+        })
+    return templates
 
 
 def generate_title(segments: list[dict], model: str) -> str:

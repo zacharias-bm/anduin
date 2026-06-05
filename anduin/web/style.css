@@ -601,8 +601,15 @@ html, body {
   margin-bottom: 0;
 }
 
+#summary-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 #summarize-btn {
   padding: 6px 14px;
+  font-family: inherit;
   font-size: 12px;
   font-weight: 600;
   background: var(--color-navy);
@@ -611,6 +618,73 @@ html, body {
   border-radius: 6px;
   cursor: pointer;
   transition: opacity 0.2s;
+  white-space: nowrap;
+}
+
+#summarize-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Custom template editor in settings */
+.custom-template-card {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+.custom-template-card input {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  background: none;
+  color: var(--color-stone);
+  outline: none;
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.custom-template-card textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 8px;
+  border: 1px solid rgba(128,128,128,0.15);
+  border-radius: 6px;
+  background: rgba(128,128,128,0.04);
+  color: var(--color-stone);
+  outline: none;
+  resize: vertical;
+  line-height: 1.5;
+  min-height: 60px;
+}
+
+.custom-template-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.custom-template-actions button {
+  font-family: inherit;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+}
+
+.template-save-btn {
+  background: var(--color-navy);
+  color: white;
+}
+
+.template-delete-btn {
+  background: rgba(255,59,48,0.1);
+  color: #ff3b30;
 }
 
 #summary-body {

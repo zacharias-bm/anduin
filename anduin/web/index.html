@@ -72,6 +72,13 @@
           </div>
 
           <div class="settings-section">
+            <h3>Custom Summary Templates</h3>
+            <p class="setting-desc" style="margin-bottom:12px">Create your own summary styles. Use <code>{transcript}</code> where the transcript should be inserted.</p>
+            <div id="custom-templates-list"></div>
+            <button id="add-template-btn" class="setting-save-btn" style="margin-top:4px">Add template</button>
+          </div>
+
+          <div class="settings-section">
             <h3>Speaker Diarization</h3>
             <div class="setting-row">
               <div class="setting-info">
@@ -131,7 +138,10 @@
               <div id="summary-label">
                 <h3>Summary</h3>
               </div>
-              <button id="summarize-btn" style="display:none">Summarize</button>
+              <div id="summary-actions">
+                <select id="template-select" class="setting-select"></select>
+                <button id="summarize-btn">Summarize</button>
+              </div>
             </div>
             <div id="summary-body"></div>
           </div>

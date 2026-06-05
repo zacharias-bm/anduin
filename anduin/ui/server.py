@@ -87,6 +87,20 @@ class _Handler(BaseHTTPRequestHandler):
                 "diarization_enabled": store.get_config("diarization_enabled", False),
             })
 
+        elif path.startswith("/api/templates"):
+            from anduin.summarization.engine import get_templates
+            custom = store.get_config("custom_templates", [])
+            qs = parse_qs(parsed.query)
+            include_prompts = qs.get("include_prompts", ["0"])[0] == "1"
+            templates = get_templates(custom)
+            if include_prompts:
+                # Attach prompts for custom templates
+                custom_by_id = {ct["id"]: ct for ct in custom}
+                for t in templates:
+                    if not t["builtin"] and t["id"] in custom_by_id:
+                        t["prompt"] = custom_by_id[t["id"]].get("prompt", "")
+            self._json({"templates": templates})
+
         elif path == "/api/dictionary":
             self._json({"words": store.get_config("dictionary", [])})
 
@@ -161,6 +175,12 @@ class _Handler(BaseHTTPRequestHandler):
                 store.set_speaker_name(sid, name)
             self._json({"ok": True})
 
+        elif path == "/api/templates":
+            body = json.loads(self._read_body())
+            # Expects {"templates": [{"id": "...", "name": "...", "prompt": "..."}]}
+            store.set_config("custom_templates", body.get("templates", []))
+            self._json({"ok": True})
+
         elif path == "/api/dictionary":
             body = json.loads(self._read_body())
             words = body.get("words", [])
@@ -195,6 +215,23 @@ class _Handler(BaseHTTPRequestHandler):
             if not meeting:
                 self._json({"error": "not found"}, 404)
                 return
+
+            # Parse template from request body
+            template_id = "standard"
+            custom_prompt = None
+            try:
+                body = json.loads(self._read_body())
+                template_id = body.get("template_id", "standard")
+                # If it's a custom template, look up its prompt
+                if not template_id.startswith(("standard", "brief", "action_items", "narrative")):
+                    custom_templates = store.get_config("custom_templates", [])
+                    for ct in custom_templates:
+                        if ct.get("id") == template_id:
+                            custom_prompt = ct.get("prompt", "")
+                            break
+            except Exception:
+                pass
+
             self._json({"status": "started"}, 202)
 
             def _run():
@@ -202,6 +239,8 @@ class _Handler(BaseHTTPRequestHandler):
                     self.event_bus.publish("summarize_start", {"meeting_id": mid})
                     summarize_meeting(
                         Path(meeting["path"]),
+                        template_id=template_id,
+                        custom_prompt=custom_prompt,
                         progress=lambda stage, msg: self.event_bus.publish("pipeline", {"stage": stage, "message": msg}),
                     )
                     self.event_bus.publish("summarize_done", {"meeting_id": mid})

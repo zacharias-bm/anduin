@@ -216,7 +216,6 @@ class AnduinApp(rumps.App):
                 out_dir = run_pipeline(
                     audio_path=audio_path,
                     title=title,
-                    mode="hybrid",
                     auto_summarize=auto_summarize,
                     progress=_progress,
                 )

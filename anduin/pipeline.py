@@ -17,8 +17,6 @@ ProgressCallback = Callable[[str, str], None]  # (stage, message)
 def run(
     audio_path: Path,
     title: str,
-    mode: str = "hybrid",
-    template: str | None = None,
     whisper_model: str | None = None,
     llm_model: str | None = None,
     auto_summarize: bool = True,
@@ -72,8 +70,6 @@ def run(
         summary = summarize(
             segments,
             model=llm_model,
-            mode=mode,
-            template=template,
             progress=None,
         )
         save_summary(out_dir, summary, title=title)
@@ -96,8 +92,8 @@ def run(
 
 def summarize_meeting(
     meeting_path: Path,
-    mode: str = "hybrid",
-    template: str | None = None,
+    template_id: str = "standard",
+    custom_prompt: str | None = None,
     llm_model: str | None = None,
     progress: ProgressCallback | None = None,
 ) -> str:
@@ -119,8 +115,8 @@ def summarize_meeting(
     summary = summarize(
         segments,
         model=llm_model,
-        mode=mode,
-        template=template,
+        template_id=template_id,
+        custom_prompt=custom_prompt,
         progress=None,
     )
     # Get existing title from DB if possible
