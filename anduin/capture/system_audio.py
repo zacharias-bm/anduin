@@ -190,12 +190,14 @@ class SystemAudioRecorder:
         self._output_delegate = None
         return output_path
 
+    _debug_logged = False
+
     def _handle_audio_buffer(self, sample_buffer):
         """Called by the delegate when audio data arrives."""
         try:
             import CoreMedia
 
-            # Get the audio buffer list from the sample buffer
+            # Get the raw data block from the sample buffer
             block_buffer = CoreMedia.CMSampleBufferGetDataBuffer(sample_buffer)
             if block_buffer is None:
                 return
@@ -204,37 +206,49 @@ class SystemAudioRecorder:
             if length == 0:
                 return
 
-            # Extract raw bytes
-            data_bytes = CoreMedia.CMBlockBufferCreateContiguous(
-                None, block_buffer, None, 0, 0, length, 0
+            # CMBlockBufferCopyDataBytes is the most reliable way to
+            # extract bytes from a CMBlockBuffer via PyObjC.
+            result = CoreMedia.CMBlockBufferCopyDataBytes(
+                block_buffer, 0, length, None
             )
-            if data_bytes is None or len(data_bytes) < 2:
-                # Try alternative extraction
-                status, data_pointer = CoreMedia.CMBlockBufferAccessDataBytes(
-                    block_buffer, 0, length, None
-                )
-                if status == 0 and data_pointer:
-                    samples = np.frombuffer(data_pointer, dtype=np.float32).copy()
-                else:
+
+            # PyObjC returns (status, bytes_data)
+            if isinstance(result, tuple):
+                status, raw_bytes = result[0], result[1]
+                if status != 0 or raw_bytes is None:
                     return
             else:
-                result_buffer = data_bytes[1] if isinstance(data_bytes, tuple) else data_bytes
-                raw = CoreMedia.CMBlockBufferGetDataPointer(result_buffer, 0, None, None)
-                if raw and len(raw) >= 3:
-                    samples = np.frombuffer(raw[3], dtype=np.float32).copy()
-                else:
-                    return
+                return
 
-            if len(samples) > 0:
-                # Reshape to match our channel count
-                if CHANNELS == 1 and len(samples.shape) == 1:
-                    samples = samples.reshape(-1, 1)
-                with self._lock:
-                    self._frames.append(samples)
+            samples = np.frombuffer(raw_bytes, dtype=np.float32).copy()
+
+            if len(samples) == 0:
+                return
+
+            # Debug: log first buffer info
+            if not self._debug_logged:
+                num_samples = CoreMedia.CMSampleBufferGetNumSamples(sample_buffer)
+                print(f"[system_audio] first buffer: {len(samples)} floats, "
+                      f"{num_samples} samples, {length} bytes", flush=True)
+                self._debug_logged = True
+
+            # If stereo, mix down to mono
+            if CHANNELS == 1 and len(samples) > 1:
+                # SCK may deliver interleaved stereo
+                fmt_desc = CoreMedia.CMSampleBufferGetFormatDescription(sample_buffer)
+                if fmt_desc:
+                    asbd = CoreMedia.CMAudioFormatDescriptionGetStreamBasicDescription(fmt_desc)
+                    if asbd and hasattr(asbd, 'mChannelsPerFrame') and asbd.mChannelsPerFrame == 2:
+                        samples = samples.reshape(-1, 2).mean(axis=1)
+
+            samples = samples.reshape(-1, 1)
+            with self._lock:
+                self._frames.append(samples)
 
         except Exception as e:
-            # Don't crash the audio callback
-            pass
+            if not self._debug_logged:
+                print(f"[system_audio] buffer error: {e}", flush=True)
+                self._debug_logged = True
 
 
 # ObjC delegate class for receiving audio samples.
