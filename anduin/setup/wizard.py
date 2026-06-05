@@ -6,8 +6,6 @@ import threading
 from anduin.hardware.detect import detect as detect_hardware
 from anduin.setup import models, ollama
 
-# Lazy-loaded by run_wizard() — declared here so the class definition
-# doesn't fail at import time in frozen builds where tkinter may not exist.
 try:
     import tkinter as tk
     from tkinter import ttk
@@ -15,22 +13,25 @@ except ImportError:
     tk = None  # type: ignore
     ttk = None  # type: ignore
 
-STEPS = ["Hardware", "Whisper", "Ollama", "Permissions", "Done"]
+STEPS = ["Setup", "Whisper", "Ollama", "Permissions", "Ready"]
 
-BG = "white"
-ACCENT = "#1a1a2e"
-ACCENT_FG = "white"
-SUBTLE = "#f5f5f5"
-MUTED = "#888"
+# ── Colors matching Anduin's palette ─────────────────────────────────────────
+BG = "#F6F4EE"       # color-paper
+NAVY = "#0E1B2E"     # color-navy
+STONE = "#1B1B1F"    # color-stone
+SLATE = "#4A4E55"    # color-slate
+BORDER = "#E5E2D9"   # color-border
+WHITE = "#FFFFFF"
+ACCENT_GREEN = "#34c759"
 
 
 class WizardApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Anduin Setup")
+        self.title("Anduin")
         self.resizable(False, False)
         self.configure(bg=BG)
-        _center(self, 580, 540)
+        _center(self, 520, 440)
 
         self._hw = detect_hardware()
         self._step = 0
@@ -38,60 +39,49 @@ class WizardApp(tk.Tk):
         self._build_chrome()
         self._show_step(0)
 
-    # ── Chrome ────────────────────────────────────────────────────────────────
-
     def _build_chrome(self):
-        hdr = tk.Frame(self, bg=ACCENT, height=56)
-        hdr.pack(fill="x")
-        hdr.pack_propagate(False)
-        tk.Label(hdr, text="Anduin Setup", font=("SF Pro Display", 17, "bold"),
-                 fg=ACCENT_FG, bg=ACCENT).pack(side="left", padx=20)
+        # Progress dots at top
+        self._dot_frame = tk.Frame(self, bg=BG, pady=16)
+        self._dot_frame.pack(fill="x")
+        self._dots = []
+        dot_container = tk.Frame(self._dot_frame, bg=BG)
+        dot_container.pack()
+        for i in range(len(STEPS)):
+            c = tk.Canvas(dot_container, width=10, height=10, bg=BG,
+                          highlightthickness=0)
+            c.pack(side="left", padx=4)
+            self._dots.append(c)
 
-        self._pip = tk.Frame(self, bg=SUBTLE, height=32)
-        self._pip.pack(fill="x")
-        self._pip.pack_propagate(False)
-        self._pip_labels: list[tk.Label] = []
-        for name in STEPS:
-            lbl = tk.Label(self._pip, text=name, font=("SF Pro Text", 10),
-                           bg=SUBTLE, fg=MUTED, width=9)
-            lbl.pack(side="left", expand=True)
-            self._pip_labels.append(lbl)
-
-        self._body = tk.Frame(self, bg=BG, padx=32, pady=20)
+        # Body
+        self._body = tk.Frame(self, bg=BG, padx=48, pady=0)
         self._body.pack(fill="both", expand=True)
-        self.option_add("*Background", BG)
-        self.option_add("*Foreground", "#333333")
 
-        footer = tk.Frame(self, bg=SUBTLE, height=56)
-        footer.pack(fill="x", side="bottom")
-        footer.pack_propagate(False)
+        # Footer with single button
+        footer = tk.Frame(self, bg=BG, pady=20)
+        footer.pack(fill="x")
+        self._next_btn = tk.Button(
+            footer, text="Continue", font=("SF Pro Text", 13, "bold"),
+            bg=NAVY, fg=WHITE, activebackground=STONE, activeforeground=WHITE,
+            relief="flat", padx=32, pady=10, cursor="hand2",
+            command=self._go_next,
+        )
+        self._next_btn.pack()
 
-        style = ttk.Style(self)
-        style.configure("Back.TButton", font=("SF Pro Text", 12))
-        style.configure("Primary.TButton", font=("SF Pro Text", 12, "bold"))
+    def _update_dots(self, index):
+        for i, c in enumerate(self._dots):
+            c.delete("all")
+            if i < index:
+                c.create_oval(1, 1, 9, 9, fill=NAVY, outline="")
+            elif i == index:
+                c.create_oval(0, 0, 10, 10, fill=NAVY, outline="")
+            else:
+                c.create_oval(1, 1, 9, 9, fill=BORDER, outline="")
 
-        self._back_btn = ttk.Button(footer, text="Back", style="Back.TButton",
-                                    command=self._go_back, width=9)
-        self._back_btn.pack(side="left", padx=16, pady=12)
-        self._next_btn = ttk.Button(footer, text="Continue", style="Primary.TButton",
-                                    command=self._go_next, width=14)
-        self._next_btn.pack(side="right", padx=16, pady=12)
-
-    # ── Navigation ────────────────────────────────────────────────────────────
-
-    def _show_step(self, index: int):
+    def _show_step(self, index):
         for w in self._body.winfo_children():
             w.destroy()
 
-        for i, lbl in enumerate(self._pip_labels):
-            if i < index:
-                lbl.config(fg=ACCENT, font=("SF Pro Text", 10, "bold"))
-            elif i == index:
-                lbl.config(fg="#4a90d9", font=("SF Pro Text", 10, "bold"))
-            else:
-                lbl.config(fg=MUTED, font=("SF Pro Text", 10))
-
-        self._back_btn.config(state="normal" if index > 0 else "disabled")
+        self._update_dots(index)
         self._next_btn.config(text="Continue", command=self._go_next, state="normal")
 
         [self._step_hardware, self._step_whisper,
@@ -104,200 +94,114 @@ class WizardApp(tk.Tk):
         else:
             self.destroy()
 
-    def _go_back(self):
-        if self._step > 0:
-            self._step -= 1
-            self._show_step(self._step)
-
     # ── Steps ─────────────────────────────────────────────────────────────────
 
     def _step_hardware(self):
         hw = self._hw
-        _h2(self._body, "Hardware Detected")
-        _body(self._body, f"Chip: Apple {hw['chip']}   ·   RAM: {hw['ram_gb']} GB")
-        _body(self._body, f"Transcription model: Whisper {hw['whisper_model']}")
-        _body(self._body, f"Summarization model: {hw['llm_model']}")
-        _spacer(self._body)
-        _body(self._body, "You can override these in Settings after setup.", muted=True)
+        _title(self._body, "Welcome to Anduin")
+        _spacer(self._body, 8)
+        _subtitle(self._body, "We detected your hardware and selected\nthe best models for your machine.")
+        _spacer(self._body, 24)
+
+        info = tk.Frame(self._body, bg=WHITE, highlightbackground=BORDER,
+                        highlightthickness=1, padx=20, pady=16)
+        info.pack(fill="x")
+        _info_row(info, "Chip", f"Apple {hw['chip']}")
+        _info_row(info, "RAM", f"{hw['ram_gb']} GB")
+        _info_row(info, "Transcription", f"Whisper {hw['whisper_model']}")
+        _info_row(info, "Summarization", hw['llm_model'])
 
     def _step_whisper(self):
         model = self._hw["whisper_model"]
         size = models.WHISPER_SIZES.get(model, "~3 GB")
-        _h2(self._body, "Transcription Model")
-        _body(self._body, f"Whisper {model} ({size}) will be downloaded to your local cache.")
-        _spacer(self._body)
+        _title(self._body, "Downloading Whisper")
+        _spacer(self._body, 4)
+        _subtitle(self._body, f"Whisper {model} ({size})")
+        _spacer(self._body, 24)
 
+        prog = ttk.Progressbar(self._body, mode="determinate", length=400, maximum=100)
+        prog.pack(fill="x", pady=(0, 8))
         status_var = tk.StringVar(value="")
-        file_var = tk.StringVar(value="")
-        prog = ttk.Progressbar(self._body, mode="determinate", length=480, maximum=100)
-        prog.pack(fill="x", pady=(4, 2))
-        tk.Label(self._body, textvariable=status_var, bg=BG, fg="#333",
+        tk.Label(self._body, textvariable=status_var, bg=BG, fg=SLATE,
                  font=("SF Pro Text", 11)).pack(anchor="w")
-        tk.Label(self._body, textvariable=file_var, bg=BG, fg=MUTED,
-                 font=("SF Pro Mono", 10)).pack(anchor="w")
 
         if models.whisper_is_downloaded(model):
             prog.config(value=100)
-            status_var.set(f"Whisper {model} is already downloaded.")
+            status_var.set("Already downloaded.")
             return
 
         self._next_btn.config(state="disabled", text="Downloading…")
 
-        def _progress(current: int, total: int, filename: str):
-            pct = int(current / total * 100) if total else 0
-            self.after(0, lambda: [
-                prog.config(value=pct),
-                status_var.set(f"Downloading… {current} / {total} files"),
-                file_var.set(filename),
-            ])
+        def _progress(current_bytes: int, total_bytes: int, filename: str):
+            if total_bytes > 0:
+                pct = int(current_bytes / total_bytes * 100)
+                mb_done = current_bytes / 1_000_000
+                mb_total = total_bytes / 1_000_000
+                self.after(0, lambda: [
+                    prog.config(value=pct),
+                    status_var.set(f"{mb_done:.0f} / {mb_total:.0f} MB — {filename}"),
+                ])
+            else:
+                self.after(0, lambda: status_var.set(f"Downloading {filename}…"))
 
         def _run():
             try:
-                models.download_whisper(model, progress=_progress)
+                models.download_whisper_with_progress(model, progress=_progress)
                 self.after(0, lambda: [
                     prog.config(value=100),
-                    status_var.set("Download complete."),
-                    file_var.set(""),
+                    status_var.set("Complete"),
                     self._next_btn.config(state="normal", text="Continue"),
                 ])
             except Exception as e:
                 err = str(e)
                 self.after(0, lambda: [
                     status_var.set(f"Error: {err}"),
-                    file_var.set(""),
-                    self._next_btn.config(state="disabled", text="Failed"),
+                    self._next_btn.config(state="normal", text="Retry",
+                                          command=lambda: self._show_step(self._step)),
                 ])
 
         threading.Thread(target=_run, daemon=True).start()
 
-    def _step_diarization(self):
-        _h2(self._body, "Speaker Diarization")
-
-        _body(self._body, "pyannote requires a free HuggingFace account and a Read token.\n"
-              "Follow these three steps:")
-        _spacer(self._body, 6)
-
-        steps_frame = tk.Frame(self._body, bg=BG)
-        steps_frame.pack(fill="x")
-
-        def _step_row(n: str, label: str, url: str | None = None):
-            row = tk.Frame(steps_frame, bg=BG)
-            row.pack(fill="x", pady=2)
-            tk.Label(row, text=n, font=("SF Pro Text", 11, "bold"),
-                     bg="#4a90d9", fg="white", width=2, padx=4).pack(side="left")
-            tk.Label(row, text="  ", bg=BG).pack(side="left")
-            if url:
-                btn = tk.Label(row, text=label, font=("SF Pro Text", 11),
-                               bg=BG, fg="#4a90d9", cursor="hand2")
-                btn.pack(side="left")
-                btn.bind("<Button-1>", lambda _e, u=url: _open(u))
-            else:
-                tk.Label(row, text=label, font=("SF Pro Text", 11),
-                         bg=BG, fg="#333").pack(side="left")
-
-        _step_row("1", "Create a free account at huggingface.co",
-                  "https://huggingface.co/join")
-        _step_row("2", "Accept: pyannote/speaker-diarization-3.1",
-                  "https://huggingface.co/pyannote/speaker-diarization-3.1")
-        _step_row("3", "Accept: pyannote/segmentation-3.0",
-                  "https://huggingface.co/pyannote/segmentation-3.0")
-        _step_row("4", "Accept: pyannote/speaker-diarization-community-1",
-                  "https://huggingface.co/pyannote/speaker-diarization-community-1")
-        _step_row("5", "Create a Read access token and paste it below",
-                  "https://huggingface.co/settings/tokens/new?tokenType=read")
-
-        _spacer(self._body, 8)
-        tk.Label(self._body, text="HuggingFace token:", bg=BG,
-                 font=("SF Pro Text", 11)).pack(anchor="w")
-        token_var = tk.StringVar()
-        entry = tk.Entry(self._body, textvariable=token_var, width=44, show="•",
-                         font=("SF Pro Mono", 11), bg="white", fg="#1a1a2e",
-                         insertbackground="#1a1a2e", relief="solid", bd=1)
-        entry.pack(anchor="w", pady=(2, 6))
-
-        status_var = tk.StringVar(value="")
-        file_var = tk.StringVar(value="")
-        prog = ttk.Progressbar(self._body, mode="determinate", length=480, maximum=100)
-        prog.pack(fill="x", pady=(2, 2))
-        tk.Label(self._body, textvariable=status_var, bg=BG, fg="#333",
-                 font=("SF Pro Text", 11)).pack(anchor="w")
-        tk.Label(self._body, textvariable=file_var, bg=BG, fg=MUTED,
-                 font=("SF Pro Mono", 10)).pack(anchor="w")
-
-        if models.pyannote_is_downloaded() and models.get_hf_token():
-            prog.config(value=100)
-            status_var.set("Already downloaded. Token stored in Keychain.")
-            return
-
-        self._next_btn.config(text="Download", command=lambda: _start_download())
-
-        def _start_download():
-            token = token_var.get().strip()
-            if not token:
-                status_var.set("Please enter your HuggingFace token.")
-                return
-            self._next_btn.config(state="disabled", text="Downloading…")
-
-            def _progress(current: int, total: int, filename: str):
-                pct = int(current / total * 100) if total else 0
-                self.after(0, lambda: [
-                    prog.config(value=pct),
-                    status_var.set(f"Downloading… {current} / {total} files"),
-                    file_var.set(filename),
-                ])
-
-            def _run():
-                try:
-                    models.download_pyannote(token, progress=_progress)
-                    self.after(0, lambda: [
-                        prog.config(value=100),
-                        status_var.set("Done. Token stored securely in Keychain."),
-                        file_var.set(""),
-                        self._next_btn.config(state="normal", text="Continue",
-                                              command=self._go_next),
-                    ])
-                except Exception as e:
-                    err = str(e)
-                    self.after(0, lambda: [
-                        status_var.set(f"Error: {err}"),
-                        file_var.set(""),
-                        self._next_btn.config(state="normal", text="Try Again",
-                                              command=lambda: _start_download()),
-                    ])
-
-            threading.Thread(target=_run, daemon=True).start()
-
     def _step_ollama(self):
         model = self._hw["llm_model"]
-        _h2(self._body, "Local LLM (Ollama)")
+        _title(self._body, "Downloading LLM")
+        _spacer(self._body, 4)
+        _subtitle(self._body, model)
+        _spacer(self._body, 24)
 
         if not ollama.is_installed():
-            _body(self._body, "Ollama is not installed.")
-            _spacer(self._body, 6)
-            tk.Label(self._body, text="↓  Download and install Ollama, then click Check Again.",
-                     bg=BG, fg="#333", font=("SF Pro Text", 11),
-                     justify="left").pack(anchor="w")
-            _spacer(self._body, 4)
-            ttk.Button(self._body, text="Download Ollama",
-                       command=lambda: _open("https://ollama.com/download/mac")).pack(anchor="w", pady=2)
-            ttk.Button(self._body, text="Check Again",
-                       command=lambda: self._show_step(self._step)).pack(anchor="w", pady=2)
+            _subtitle(self._body, "Ollama is not installed.")
+            _spacer(self._body, 12)
+            btn = tk.Button(
+                self._body, text="Download Ollama", font=("SF Pro Text", 12),
+                bg=NAVY, fg=WHITE, activebackground=STONE, activeforeground=WHITE,
+                relief="flat", padx=20, pady=8, cursor="hand2",
+                command=lambda: _open("https://ollama.com/download/mac"),
+            )
+            btn.pack()
+            _spacer(self._body, 8)
+            retry = tk.Button(
+                self._body, text="I've installed it", font=("SF Pro Text", 11),
+                bg=BG, fg=SLATE, activebackground=BG, activeforeground=STONE,
+                relief="flat", cursor="hand2",
+                command=lambda: self._show_step(self._step),
+            )
+            retry.pack()
             self._next_btn.config(state="disabled")
             return
 
-        _body(self._body, f"Ollama is installed. Pulling {model}…")
+        prog = ttk.Progressbar(self._body, mode="determinate", length=400, maximum=100)
+        prog.pack(fill="x", pady=(0, 8))
         status_var = tk.StringVar(value="")
-        prog = ttk.Progressbar(self._body, mode="determinate", length=480, maximum=100)
-        prog.pack(fill="x", pady=8)
-        tk.Label(self._body, textvariable=status_var, bg=BG, fg=MUTED,
+        tk.Label(self._body, textvariable=status_var, bg=BG, fg=SLATE,
                  font=("SF Pro Text", 11)).pack(anchor="w")
 
         if ollama.model_is_pulled(model):
             prog.config(value=100)
-            status_var.set(f"{model} is already available.")
+            status_var.set("Already downloaded.")
             return
 
-        self._next_btn.config(state="disabled", text="Pulling…")
+        self._next_btn.config(state="disabled", text="Downloading…")
 
         def _run():
             try:
@@ -315,82 +219,89 @@ class WizardApp(tk.Tk):
                 ollama.pull_model(model, progress=_prog)
                 self.after(0, lambda: [
                     prog.config(value=100),
-                    status_var.set("Done."),
+                    status_var.set("Complete"),
                     self._next_btn.config(state="normal", text="Continue"),
                 ])
             except Exception as e:
                 err = str(e)
                 self.after(0, lambda: [
                     status_var.set(f"Error: {err}"),
-                    self._next_btn.config(state="disabled", text="Failed"),
+                    self._next_btn.config(state="normal", text="Retry",
+                                          command=lambda: self._show_step(self._step)),
                 ])
 
         threading.Thread(target=_run, daemon=True).start()
 
     def _step_screen_recording(self):
-        _h2(self._body, "Digital Meetings (Optional)")
-        _body(self._body, "To record Zoom, Teams, or any app's audio alongside your mic,\n"
-              "Anduin uses macOS Screen Recording to capture system audio.")
-        _spacer(self._body, 8)
-        _body(self._body, "No screen content is recorded — only audio is captured.", muted=True)
-        _spacer(self._body, 8)
+        _title(self._body, "Screen Recording")
+        _spacer(self._body, 4)
+        _subtitle(self._body, "Required for recording digital meetings.\nOnly audio is captured — no screen content.")
+        _spacer(self._body, 24)
 
-        status_var = tk.StringVar(value="")
-        tk.Label(self._body, textvariable=status_var, bg=BG, fg="#333",
-                 font=("SF Pro Text", 11)).pack(anchor="w", pady=(0, 8))
+        status_var = tk.StringVar(value="Checking…")
+        tk.Label(self._body, textvariable=status_var, bg=BG, fg=SLATE,
+                 font=("SF Pro Text", 11)).pack(anchor="center")
+        _spacer(self._body, 12)
+
+        grant_btn = tk.Button(
+            self._body, text="Grant Permission", font=("SF Pro Text", 12, "bold"),
+            bg=NAVY, fg=WHITE, activebackground=STONE, activeforeground=WHITE,
+            relief="flat", padx=24, pady=8, cursor="hand2",
+        )
 
         def _check():
             try:
                 from anduin.capture.system_audio import has_permission
                 if has_permission():
                     status_var.set("Permission granted.")
+                    grant_btn.pack_forget()
+                    # Auto-advance after a short delay
+                    self.after(800, self._go_next)
                 else:
-                    status_var.set("Permission not yet granted. Click the button below.")
-            except Exception as e:
-                status_var.set(f"Could not check: {e}")
+                    status_var.set("Not yet granted.")
+                    grant_btn.pack()
+            except Exception:
+                status_var.set("Skipped — grant later in System Settings.")
 
         def _request():
-            status_var.set("Requesting permission… A macOS dialog should appear.")
+            status_var.set("A system dialog should appear…")
+            grant_btn.config(state="disabled")
             def _run():
                 try:
                     from anduin.capture.system_audio import request_permission
                     granted = request_permission()
-                    self.after(0, lambda: status_var.set(
-                        "Permission granted." if granted
-                        else "Permission denied. Grant it in System Settings → Privacy & Security → Screen Recording."
-                    ))
-                except Exception as e:
-                    self.after(0, lambda: status_var.set(f"Error: {e}"))
+                    self.after(0, lambda: [
+                        status_var.set("Permission granted." if granted else "Denied — you can grant it later in System Settings."),
+                        grant_btn.config(state="normal"),
+                    ])
+                    if granted:
+                        self.after(800, self._go_next)
+                except Exception:
+                    self.after(0, lambda: status_var.set("Skipped."))
             threading.Thread(target=_run, daemon=True).start()
 
-        ttk.Button(self._body, text="Grant Screen Recording Permission",
-                   command=_request).pack(anchor="w", pady=2)
-        _spacer(self._body, 4)
-        ttk.Button(self._body, text="Open System Settings",
-                   command=lambda: subprocess.run(
-                       ["open", "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"]
-                   )).pack(anchor="w", pady=2)
-
-        _spacer(self._body, 8)
-        _body(self._body, "You can skip this step — it's only needed for digital meetings.\n"
-              "In-person meetings use only the microphone and work without this.", muted=True)
-
+        grant_btn.config(command=_request)
         _check()
 
     def _step_done(self):
-        _h2(self._body, "All Set!")
-        _body(self._body, "Anduin is ready. It will appear as an icon in your menu bar.")
-        _spacer(self._body)
-        _body(self._body, "You can re-run this wizard any time from Settings.", muted=True)
-        self._next_btn.config(text="Launch Anduin")
+        _spacer(self._body, 40)
+        _title(self._body, "Ready to go")
+        _spacer(self._body, 8)
+        _subtitle(self._body, "Anduin will appear in your menu bar.")
+        _spacer(self._body, 40)
+
+        self._next_btn.config(
+            text="Launch Anduin",
+            font=("SF Pro Text", 14, "bold"),
+            padx=40, pady=12,
+        )
 
 
-# ── Public API ─────────────────────────────────────────────────────────────────
+# ── Public API ────────────────────────────────────────────────────────────────
 
 def run_wizard():
     import tkinter
     import tkinter.ttk
-    # Inject into module globals so WizardApp and helpers can use them
     global tk, ttk
     tk = tkinter
     ttk = tkinter.ttk
@@ -399,64 +310,58 @@ def run_wizard():
 
 
 def is_setup_complete() -> bool:
-    """Check whether first-time setup has been done.
-
-    Only checks persistent state (downloaded files, stored tokens, installed
-    binaries) — NOT whether runtime services like Ollama are currently running,
-    since those are started later by the app.
-    """
     hw = detect_hardware()
     if not models.whisper_is_downloaded(hw["whisper_model"]):
         return False
     if not ollama.is_installed():
         return False
-    # Check if the Ollama model has been pulled by looking at the local
-    # model manifest, without requiring the Ollama server to be running.
     if not _ollama_model_exists(hw["llm_model"]):
         return False
     return True
 
 
 def _ollama_model_exists(model: str) -> bool:
-    """Check if an Ollama model is available locally (without hitting the API).
-
-    Falls back to the API check if the manifest path isn't found — covers
-    custom OLLAMA_MODELS paths or future Ollama layout changes.
-    """
     from pathlib import Path
     import os
     models_dir = Path(os.environ.get(
         "OLLAMA_MODELS",
         Path.home() / ".ollama" / "models",
     ))
-    # Ollama stores models as manifests under models/manifests/registry.ollama.ai/library/<name>/<tag>
     name = model.split(":")[0] if ":" in model else model
     tag = model.split(":")[1] if ":" in model else "latest"
     manifest = models_dir / "manifests" / "registry.ollama.ai" / "library" / name / tag
     if manifest.exists():
         return True
-    # Fallback: try the API if Ollama happens to be running
     return ollama.model_is_pulled(model)
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# ── UI Helpers ────────────────────────────────────────────────────────────────
 
-def _h2(parent: tk.Frame, text: str):
-    tk.Label(parent, text=text, font=("SF Pro Display", 16, "bold"),
-             bg=BG, anchor="w").pack(fill="x", pady=(0, 6))
-
-
-def _body(parent: tk.Frame, text: str, muted: bool = False):
-    tk.Label(parent, text=text, font=("SF Pro Text", 12),
-             bg=BG, fg=MUTED if muted else "#333",
-             anchor="w", justify="left", wraplength=500).pack(fill="x", pady=1)
+def _title(parent, text: str):
+    tk.Label(parent, text=text, font=("SF Pro Display", 22, "bold"),
+             bg=BG, fg=STONE, anchor="center").pack(fill="x")
 
 
-def _spacer(parent: tk.Frame, height: int = 8):
+def _subtitle(parent, text: str):
+    tk.Label(parent, text=text, font=("SF Pro Text", 13),
+             bg=BG, fg=SLATE, anchor="center", justify="center",
+             wraplength=400).pack(fill="x")
+
+
+def _info_row(parent, label: str, value: str):
+    row = tk.Frame(parent, bg=WHITE)
+    row.pack(fill="x", pady=3)
+    tk.Label(row, text=label, font=("SF Pro Text", 12),
+             bg=WHITE, fg=SLATE, width=14, anchor="w").pack(side="left")
+    tk.Label(row, text=value, font=("SF Pro Text", 12, "bold"),
+             bg=WHITE, fg=STONE, anchor="w").pack(side="left")
+
+
+def _spacer(parent, height: int = 8):
     tk.Frame(parent, bg=BG, height=height).pack()
 
 
-def _center(win: tk.Tk, w: int, h: int):
+def _center(win, w: int, h: int):
     win.geometry(f"{w}x{h}+{(win.winfo_screenwidth()-w)//2}+{(win.winfo_screenheight()-h)//2}")
 
 

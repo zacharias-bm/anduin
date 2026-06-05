@@ -43,6 +43,51 @@ def download_whisper(model_size: str, progress: ProgressFn | None = None) -> Pat
     return Path(last_path).parent if last_path else Path()
 
 
+# Byte-level progress callback: (bytes_downloaded, total_bytes, filename)
+ByteProgressFn = Callable[[int, int, str], None]
+
+
+def download_whisper_with_progress(model_size: str, progress: ByteProgressFn | None = None) -> Path:
+    """Download Whisper model with byte-level progress via custom tqdm class."""
+    repo = WHISPER_REPOS[model_size]
+    files = list(list_repo_files(repo))
+
+    # Track cumulative bytes across all files
+    state = {"downloaded": 0, "total": 0, "current_file": ""}
+
+    class ProgressTqdm:
+        """Minimal tqdm-compatible class that forwards to our callback."""
+        def __init__(self, *args, total=None, **kwargs):
+            self._total = total or 0
+            # Add this file's size to global total on first encounter
+            if self._total > 0:
+                state["total"] += self._total
+
+        def update(self, n=1):
+            state["downloaded"] += n
+            if progress:
+                progress(state["downloaded"], state["total"], state["current_file"])
+
+        def close(self):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    last_path = None
+    for filename in files:
+        state["current_file"] = filename
+        if progress:
+            progress(state["downloaded"], max(state["total"], 1), filename)
+        last_path = hf_hub_download(repo_id=repo, filename=filename,
+                                    tqdm_class=ProgressTqdm)
+
+    return Path(last_path).parent if last_path else Path()
+
+
 def pyannote_is_downloaded() -> bool:
     return try_to_load_from_cache(PYANNOTE_REPO, "config.yaml") is not None
 
