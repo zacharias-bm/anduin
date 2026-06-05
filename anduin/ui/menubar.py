@@ -249,18 +249,15 @@ class AnduinApp(rumps.App):
     # ── Updates ───────────────────────────────────────────────────────────────
 
     def _check_updates_async(self):
-        """Background update check on launch — non-intrusive."""
+        """Background update check on launch — auto-downloads if available."""
         def _run():
             import time
-            time.sleep(5)  # Let the app finish launching first
+            time.sleep(5)
             try:
                 from anduin.updater import check_for_update
                 update = check_for_update()
                 if update:
-                    version = update["version"]
-                    print(f"[updater] update available: v{version}", flush=True)
-                    self._pending_update = update
-                    self._event_bus.publish("update_available", {"version": version})
+                    self._apply_update(update)
             except Exception as e:
                 print(f"[updater] background check failed: {e}", flush=True)
 
@@ -270,17 +267,11 @@ class AnduinApp(rumps.App):
         """Manual update check from the menu."""
         def _run():
             try:
-                from anduin.updater import check_for_update, download_and_apply, current_version
+                from anduin.updater import check_for_update, current_version
                 self._event_bus.publish("pipeline", {"stage": "update", "message": "Checking for updates..."})
                 update = check_for_update()
                 if update:
-                    version = update["version"]
-                    def _progress(downloaded, total):
-                        if total > 0:
-                            pct = round(downloaded / total * 100)
-                            self._event_bus.publish("pipeline", {"stage": "update", "message": f"Downloading v{version} — {pct}%"})
-                    self._event_bus.publish("pipeline", {"stage": "update", "message": f"Downloading v{version}..."})
-                    download_and_apply(update, progress=_progress)
+                    self._apply_update(update)
                 else:
                     self._event_bus.publish("pipeline", {"stage": "update", "message": f"You're on the latest version (v{current_version()})"})
                     import time
@@ -298,6 +289,27 @@ class AnduinApp(rumps.App):
         threading.Thread(target=_run, daemon=True).start()
 
     # ── Ollama lifecycle ──────────────────────────────────────────────────────
+
+    def _apply_update(self, update):
+        from anduin.updater import download_and_apply
+        version = update["version"]
+
+        def _progress(downloaded, total):
+            if total > 0:
+                pct = round(downloaded / total * 100)
+                self._event_bus.publish("pipeline", {"stage": "update", "message": f"Downloading v{version} — {pct}%"})
+
+        def _on_stage(msg):
+            self._event_bus.publish("pipeline", {"stage": "update", "message": msg})
+
+        self._window.open()
+        self._event_bus.publish("pipeline", {"stage": "update", "message": f"Downloading v{version}..."})
+        success = download_and_apply(update, progress=_progress, on_stage=_on_stage)
+        if not success:
+            self._event_bus.publish("pipeline", {"stage": "update", "message": "Update failed — try again later"})
+            import time
+            time.sleep(4)
+            self._event_bus.publish("pipeline", {"stage": "done", "message": ""})
 
     def _start_ollama_async(self):
         def _run():

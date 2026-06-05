@@ -85,53 +85,58 @@ def check_for_update() -> dict | None:
         return None
 
 
+StageCallback = Callable[[str], None]  # (stage_message)
+
+
 def download_and_apply(
     update_info: dict,
     progress: ProgressCallback | None = None,
+    on_stage: StageCallback | None = None,
 ) -> bool:
     """Download update, verify checksum, stage it, and relaunch.
 
     Returns True if the update was staged successfully (app will relaunch).
     Returns False on any error.
     """
+    def _stage(msg: str):
+        print(f"[updater] {msg}", flush=True)
+        if on_stage:
+            on_stage(msg)
+
     try:
         url = update_info["url"]
         expected_sha = update_info.get("sha256", "")
         version = update_info["version"]
 
-        print(f"[updater] downloading {version} from {url}", flush=True)
+        _stage(f"Downloading v{version}...")
 
-        # Download to temp file
         tmp_dir = Path(tempfile.mkdtemp(prefix="anduin_update_"))
         archive_name = url.split("/")[-1]
         archive_path = tmp_dir / archive_name
 
         _download_file(url, archive_path, progress)
 
-        # Verify checksum
         if expected_sha:
+            _stage("Verifying download...")
             actual_sha = _sha256(archive_path)
             if actual_sha != expected_sha:
                 print(f"[updater] checksum mismatch: expected {expected_sha}, got {actual_sha}", flush=True)
                 shutil.rmtree(tmp_dir, ignore_errors=True)
                 return False
-            print("[updater] checksum verified", flush=True)
 
-        # Extract
+        _stage("Installing update...")
         extract_dir = tmp_dir / "extracted"
         extract_dir.mkdir()
         _extract(archive_path, extract_dir)
 
-        # Stage the update
         if sys.platform == "darwin":
             _stage_macos(extract_dir)
         else:
             _stage_windows(extract_dir)
 
-        # Clean up temp
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
-        print(f"[updater] update to {version} staged, relaunching...", flush=True)
+        _stage("Relaunching...")
         _relaunch()
         return True
 
