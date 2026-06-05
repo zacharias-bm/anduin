@@ -67,12 +67,24 @@ def run(
 
     if auto_summarize:
         _p("summarize", "Generating summary...")
+        default_tid = get_config("default_template", None)
+        templates = get_config("custom_templates", [])
+        custom_prompt = None
+        template_id = "standard"
+        if default_tid:
+            for ct in templates:
+                if ct.get("id") == default_tid:
+                    template_id = default_tid
+                    custom_prompt = ct.get("prompt", "")
+                    break
         summary = summarize(
             segments,
             model=llm_model,
+            template_id=template_id,
+            custom_prompt=custom_prompt,
             progress=None,
         )
-        save_summary(out_dir, summary, title=title)
+        save_summary(out_dir, summary, title=title, template_id=template_id)
     else:
         _p("skip_summarize", "Skipping auto-summarization")
         # Still index it so it shows up in the list
@@ -125,6 +137,6 @@ def summarize_meeting(
         row = con.execute("SELECT title FROM meetings WHERE path = ?", (str(meeting_path),)).fetchone()
         existing_title = row[0] if row else None
     
-    save_summary(meeting_path, summary, title=existing_title)
+    save_summary(meeting_path, summary, title=existing_title, template_id=template_id)
     _p("done", "Summary complete")
     return summary

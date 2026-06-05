@@ -95,7 +95,7 @@ class _Handler(BaseHTTPRequestHandler):
             templates = ensure_default_templates(store.get_config("custom_templates", []))
             # Save back if defaults were seeded
             store.set_config("custom_templates", templates)
-            self._json({"templates": templates})
+            self._json({"templates": templates, "default_template": store.get_config("default_template")})
 
         elif path == "/api/templates/defaults":
             from anduin.summarization.engine import get_default_templates
@@ -177,8 +177,12 @@ class _Handler(BaseHTTPRequestHandler):
 
         elif path == "/api/templates":
             body = json.loads(self._read_body())
-            # Expects {"templates": [{"id": "...", "name": "...", "prompt": "..."}]}
             store.set_config("custom_templates", body.get("templates", []))
+            self._json({"ok": True})
+
+        elif path == "/api/templates/default":
+            body = json.loads(self._read_body())
+            store.set_config("default_template", body.get("template_id"))
             self._json({"ok": True})
 
         elif path == "/api/dictionary":

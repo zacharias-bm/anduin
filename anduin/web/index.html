@@ -80,37 +80,23 @@
           </div>
 
           <div class="settings-section">
-            <h3>Dictionary</h3>
-            <p class="setting-desc" style="margin-bottom:12px">Add names and terms to help the transcription recognise uncommon words. One per line.</p>
-            <textarea id="s-dictionary" class="setting-textarea" rows="4" placeholder="e.g.&#10;John Smith&#10;Acme Corp&#10;Kubernetes" spellcheck="false"></textarea>
-            <button id="save-dictionary-btn" class="setting-save-btn">Save</button>
+            <h3>Transcription</h3>
+            <div class="setting-row setting-row-link" id="open-dictionary-btn">
+              <div class="setting-info">
+                <div class="setting-label">Dictionary</div>
+                <div class="setting-desc">Names and terms to help recognise uncommon words</div>
+              </div>
+              <span class="setting-chevron">&#9654;</span>
+            </div>
           </div>
 
           <div class="settings-section">
             <h3>Summary Templates</h3>
-            <p class="setting-desc" style="margin-bottom:12px">Edit, add, or remove summary styles. Use <code>{transcript}</code> where the transcript should be inserted.</p>
+            <p class="setting-desc" style="margin-bottom:12px">Edit, add, or remove summary styles. The transcript is appended automatically.</p>
             <div id="custom-templates-list"></div>
             <div style="display:flex;gap:8px;margin-top:4px">
               <button id="add-template-btn" class="setting-save-btn">Add template</button>
               <button id="reset-templates-btn" class="setting-save-btn" style="background:transparent;color:var(--color-slate);border:1px solid var(--color-border)">Reset defaults</button>
-            </div>
-          </div>
-
-          <div class="settings-section">
-            <h3>Speaker Diarization</h3>
-            <div class="setting-row">
-              <div class="setting-info">
-                <div class="setting-label">Enable diarization</div>
-                <div class="setting-desc">Identify and label individual speakers (requires HuggingFace token and pyannote license)</div>
-              </div>
-              <label class="toggle"><input type="checkbox" id="s-diarization-enabled"><span class="toggle-slider"></span></label>
-            </div>
-            <div id="hf-token-row" class="setting-row" style="display:none">
-              <div class="setting-info">
-                <div class="setting-label">HuggingFace token</div>
-                <div class="setting-desc">A Read token from <a href="https://huggingface.co/settings/tokens" target="_blank">huggingface.co</a>. You must also accept the <a href="https://huggingface.co/pyannote/speaker-diarization-3.1" target="_blank">pyannote license</a>.</div>
-              </div>
-              <input type="password" id="s-hf-token" placeholder="hf_..." spellcheck="false" autocomplete="off">
             </div>
           </div>
 
@@ -143,6 +129,13 @@
             </div>
           </div>
         </div>
+        <div id="dictionary-subpage" style="display:none">
+          <button id="dictionary-back-btn" class="subpage-back-btn">&larr; Settings</button>
+          <h2>Dictionary</h2>
+          <p class="setting-desc" style="margin-bottom:12px">Add names and terms to help the transcription recognise uncommon words. One per line.</p>
+          <textarea id="s-dictionary" class="setting-textarea" rows="10" placeholder="e.g.&#10;John Smith&#10;Acme Corp&#10;Kubernetes" spellcheck="false"></textarea>
+          <button id="save-dictionary-btn" class="setting-save-btn" style="margin-top:8px">Save</button>
+        </div>
       </div>
       <div id="meeting-view" style="display:none">
         <div id="meeting-header">
@@ -159,7 +152,6 @@
               </div>
             </div>
           </div>
-          <div id="meeting-meta"></div>
         </div>
         <div id="meeting-content">
           <div id="summary-card">

@@ -220,7 +220,6 @@ class AnduinApp(rumps.App):
                     progress=_progress,
                 )
                 self.title = None # Keep logo only
-                print(f"[pipeline] done: {out_dir}", flush=True)
 
                 # Clean up temp recording file
                 tmp = store.APP_DIR / "recording_tmp.wav"

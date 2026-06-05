@@ -12,55 +12,8 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 
 BUILTIN_TEMPLATES = {
     "standard": {
-        "name": "Standard",
-        "prompt": """\
-You are a meeting summarizer. Using the transcript below, produce a structured summary.
-
-Always include these sections:
-
-## Attendees
-List each speaker (use their name if known).
-
-## Decisions
-Bullet list of decisions made.
-
-## Action Items
-Each item as: - [ ] <task> — **<owner>** by <deadline or "no deadline">
-
-## Discussion Summary
-Concise freeform summary of the main topics discussed.
-
-Transcript:
-{transcript}""",
-    },
-    "brief": {
-        "name": "Brief",
-        "prompt": """\
-Summarize this meeting in 3-5 bullet points. Be concise. No headers, just bullets.
-
-Transcript:
-{transcript}""",
-    },
-    "action_items": {
-        "name": "Action Items Only",
-        "prompt": """\
-Extract only the action items and next steps from this meeting. Format each as:
-- [ ] <task> — **<owner>** by <deadline or "TBD">
-
-If no action items were discussed, say "No action items identified."
-
-Transcript:
-{transcript}""",
-    },
-    "narrative": {
-        "name": "Narrative",
-        "prompt": """\
-Write a concise narrative summary of this meeting in 2-3 paragraphs. \
-Use natural prose, not bullet points. Focus on what was discussed, \
-what was decided, and what happens next.
-
-Transcript:
-{transcript}""",
+        "name": "Meeting Summary",
+        "prompt": "Summarize this meeting. Include who was present, what was discussed, any decisions made, and action items with owners if mentioned. Be concise.",
     },
 }
 
@@ -92,11 +45,15 @@ def summarize(
         )
 
     if custom_prompt:
-        prompt = custom_prompt.replace("{transcript}", transcript)
+        base = custom_prompt
     elif template_id in BUILTIN_TEMPLATES:
-        prompt = BUILTIN_TEMPLATES[template_id]["prompt"].format(transcript=transcript)
+        base = BUILTIN_TEMPLATES[template_id]["prompt"]
     else:
-        prompt = BUILTIN_TEMPLATES[DEFAULT_TEMPLATE]["prompt"].format(transcript=transcript)
+        base = BUILTIN_TEMPLATES[DEFAULT_TEMPLATE]["prompt"]
+
+    # Strip any legacy {transcript} placeholder, then always append
+    base = base.replace("{transcript}", "").rstrip()
+    prompt = f"{base}\n\nTranscript:\n{transcript}"
 
     return _call_ollama(model, prompt, progress)
 

@@ -26,9 +26,11 @@ def meeting_dir(title: str) -> Path:
     return path
 
 
-def save_summary(path: Path, summary: str, title: str | None = None) -> Path:
+def save_summary(path: Path, summary: str, title: str | None = None, template_id: str | None = None) -> Path:
     summary_path = path / "summary.md"
     summary_path.write_text(summary)
+    if template_id:
+        (path / "template_id.txt").write_text(template_id)
     _index_meeting(path, title=title)
     return summary_path
 
@@ -69,11 +71,14 @@ def get_meeting(meeting_id: int) -> dict | None:
     if summary_path.exists():
         summary = summary_path.read_text()
     has_audio = (path / "audio.wav").exists()
+    tid_path = path / "template_id.txt"
+    template_id = tid_path.read_text().strip() if tid_path.exists() else None
     return {
         "id": row[0], "title": row[1], "date": row[2], "path": row[3],
         "duration_secs": row[4], "speaker_count": row[5],
         "transcript": transcript, "summary": summary,
         "has_summary": bool(summary), "has_audio": has_audio,
+        "template_id": template_id,
     }
 
 
@@ -154,14 +159,33 @@ def delete_audio(meeting_id: int) -> bool:
 
 
 def search(query: str) -> list[dict]:
+    tokens = query.lower().split()
+    if not tokens:
+        return []
+    clauses = []
+    params = []
+    for tok in tokens:
+        pattern = f"%{tok}%"
+        clauses.append(
+            "(LOWER(m.title) LIKE ? OR f.transcript LIKE ? OR f.summary LIKE ?)"
+        )
+        params.extend([pattern, pattern, pattern])
+    sql = (
+        "SELECT m.id, m.title, m.date, m.path, m.duration_secs, m.speaker_count "
+        "FROM meetings_fts f JOIN meetings m ON m.id = f.rowid "
+        "WHERE " + " AND ".join(clauses) +
+        " ORDER BY m.date DESC LIMIT 50"
+    )
     with _connect() as con:
-        rows = con.execute(
-            "SELECT m.id, m.title, m.date, m.path "
-            "FROM meetings_fts f JOIN meetings m ON m.id = f.rowid "
-            "WHERE meetings_fts MATCH ?",
-            (query,),
-        ).fetchall()
-    return [{"id": r[0], "title": r[1], "date": r[2], "path": r[3]} for r in rows]
+        rows = con.execute(sql, params).fetchall()
+    return [
+        {
+            "id": r[0], "title": r[1], "date": r[2], "path": r[3],
+            "duration_secs": r[4], "speaker_count": r[5],
+            "has_summary": (Path(r[3]) / "summary.md").exists(),
+        }
+        for r in rows
+    ]
 
 
 def get_speaker_names() -> dict[str, str]:

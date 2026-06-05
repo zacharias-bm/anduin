@@ -156,21 +156,13 @@ function renderMeeting(m) {
   document.getElementById("empty-state").style.display = "none";
   document.getElementById("meeting-view").style.display = "block";
 
-  const eyebrowEl = document.getElementById("meeting-eyebrow");
-  eyebrowEl.textContent = formatEyebrow(m.date);
+  const eyebrowParts = [formatEyebrow(m.date)];
+  if (m.duration_secs) eyebrowParts.push(formatDurationLong(m.duration_secs));
+  document.getElementById("meeting-eyebrow").textContent = eyebrowParts.filter(Boolean).join(" · ");
 
   const titleEl = document.getElementById("meeting-title");
   titleEl.textContent = m.title;
   titleEl.dataset.id = m.id;
-
-  const meta = [
-    m.speaker_count ? `${m.speaker_count} speaker${m.speaker_count > 1 ? "s" : ""}` : null,
-    m.duration_secs ? formatDurationLong(m.duration_secs) : null,
-    "Transcribed locally",
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  document.getElementById("meeting-meta").textContent = meta;
 
   const summaryBody = document.getElementById("summary-body");
   const summarizeBtn = document.getElementById("summarize-btn");
@@ -183,8 +175,8 @@ function renderMeeting(m) {
   }
   summarizeBtn.disabled = false;
 
-  // Load templates into picker
-  loadTemplateSelect();
+  // Load templates into picker — show the template used for this summary
+  loadTemplateSelect(m.template_id);
 
   renderTranscript(m.transcript || []);
 
@@ -310,11 +302,13 @@ document.getElementById("meeting-title").addEventListener("keydown", (e) => {
 });
 
 // Template picker
-async function loadTemplateSelect() {
+async function loadTemplateSelect(meetingTemplateId) {
   const data = await fetchJSON("/api/templates");
   const el = document.getElementById("template-select");
   const options = data.templates.map(t => ({ value: t.id, label: t.name }));
-  initCustomSelect(el, options, el.dataset.value || "standard", null);
+  const defaultId = data.default_template || (data.templates.length ? data.templates[0].id : "standard");
+  const selectedId = meetingTemplateId || defaultId;
+  initCustomSelect(el, options, selectedId, null);
 }
 
 // Summarize / Re-summarize button
@@ -411,6 +405,8 @@ function showSettings() {
   document.getElementById("empty-state").style.display = "none";
   document.getElementById("meeting-view").style.display = "none";
   document.getElementById("settings-view").style.display = "block";
+  document.getElementById("settings-inner").style.display = "block";
+  document.getElementById("dictionary-subpage").style.display = "none";
   document.getElementById("settings-btn").classList.add("active");
   document.querySelectorAll(".meeting-item").forEach(el => el.classList.remove("active"));
   loadSettingsPanel();
@@ -429,24 +425,9 @@ async function loadSettingsPanel() {
   const settings = await fetchJSON("/api/settings");
   document.getElementById("s-auto-summarize").checked = settings.auto_summarize;
   document.getElementById("s-keep-audio").checked = settings.keep_audio;
-  document.getElementById("s-diarization-enabled").checked = settings.diarization_enabled;
-
   // Load dictionary
   const dictData = await fetchJSON("/api/dictionary");
   document.getElementById("s-dictionary").value = (dictData.words || []).join("\n");
-
-  // Show/hide HF token row based on diarization toggle
-  const hfRow = document.getElementById("hf-token-row");
-  if (hfRow) hfRow.style.display = settings.diarization_enabled ? "flex" : "none";
-
-  // Load HF token status
-  if (settings.diarization_enabled) {
-    const tokenInfo = await fetchJSON("/api/hf-token");
-    const tokenInput = document.getElementById("s-hf-token");
-    if (tokenInfo.has_token) {
-      tokenInput.placeholder = tokenInfo.masked;
-    }
-  }
 
   // Load custom templates
   loadCustomTemplatesEditor();
@@ -496,55 +477,81 @@ document.getElementById("s-dark-mode").addEventListener("change", e => {
 
 document.getElementById("s-auto-summarize").addEventListener("change", e => saveSetting("auto_summarize", e.target.checked));
 document.getElementById("s-keep-audio").addEventListener("change", e => saveSetting("keep_audio", e.target.checked));
-document.getElementById("s-diarization-enabled").addEventListener("change", e => {
-  saveSetting("diarization_enabled", e.target.checked);
-  const hfRow = document.getElementById("hf-token-row");
-  if (hfRow) hfRow.style.display = e.target.checked ? "flex" : "none";
-});
-
-// HF token save on blur
-document.getElementById("s-hf-token").addEventListener("change", async (e) => {
-  const token = e.target.value.trim();
-  if (token) {
-    await fetch("/api/hf-token", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token }),
-    });
-    e.target.value = "";
-    e.target.placeholder = `${token.slice(0, 5)}...${token.slice(-4)}`;
-  }
-});
 
 // ── Custom template editor ─────────────────────────────
 
 let _customTemplates = [];
+let _defaultTemplateId = null;
 
 async function loadCustomTemplatesEditor() {
   const data = await fetchJSON("/api/templates");
   _customTemplates = data.templates || [];
+  _defaultTemplateId = data.default_template || (_customTemplates.length ? _customTemplates[0].id : null);
   renderCustomTemplates();
 }
 
 function renderCustomTemplates() {
   const list = document.getElementById("custom-templates-list");
-  list.innerHTML = _customTemplates.map((t, i) =>
-    `<div class="custom-template-card" data-index="${i}">
-      <input type="text" value="${esc(t.name)}" placeholder="Template name" class="ct-name">
-      <textarea class="ct-prompt" rows="3" placeholder="Your prompt... use {transcript} for the transcript">${esc(t.prompt || "")}</textarea>
-      <div class="custom-template-actions">
-        <button class="template-delete-btn" data-index="${i}">Delete</button>
-        <button class="template-save-btn" data-index="${i}">Save</button>
+  list.innerHTML = _customTemplates.map((t, i) => {
+    const isDef = t.id === _defaultTemplateId;
+    const canDelete = _customTemplates.length > 1;
+    return `<div class="custom-template-card" data-index="${i}">
+      <div class="ct-header">
+        <span class="ct-chevron">&#9654;</span>
+        <span class="ct-name-wrap" onclick="event.stopPropagation()">
+          <input type="text" value="${esc(t.name)}" placeholder="Template name" class="ct-name">
+        </span>
+        <button class="ct-default-btn ${isDef ? "is-default" : ""}" data-index="${i}" title="${isDef ? "Default template" : "Set as default"}" onclick="event.stopPropagation()">&#9733;</button>
+        ${canDelete ? `<button class="ct-delete-btn" data-index="${i}" title="Delete" onclick="event.stopPropagation()">&times;</button>` : ""}
       </div>
-    </div>`
-  ).join("");
+      <div class="ct-body">
+        <textarea class="ct-prompt" rows="8" placeholder="Instructions for how the meeting should be summarized...">${esc(t.prompt || "")}</textarea>
+        <div class="ct-body-actions">
+          <button class="template-save-btn" data-index="${i}">Save</button>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
 
+  list.querySelectorAll(".ct-header").forEach(hdr => {
+    hdr.addEventListener("click", (e) => {
+      if (e.target.tagName === "INPUT") return;
+      hdr.closest(".custom-template-card").classList.toggle("expanded");
+    });
+  });
+
+  function autoSizeInput(input) {
+    const measure = document.createElement("span");
+    measure.style.cssText = "visibility:hidden;position:absolute;white-space:pre;font:inherit;font-size:13px;font-weight:600;padding:0";
+    measure.textContent = input.value || input.placeholder;
+    document.body.appendChild(measure);
+    input.style.width = (measure.offsetWidth + 4) + "px";
+    measure.remove();
+  }
+  list.querySelectorAll(".ct-name").forEach(inp => {
+    autoSizeInput(inp);
+    inp.addEventListener("input", () => autoSizeInput(inp));
+  });
   list.querySelectorAll(".template-save-btn").forEach(btn => {
     btn.addEventListener("click", () => saveCustomTemplate(parseInt(btn.dataset.index)));
   });
-  list.querySelectorAll(".template-delete-btn").forEach(btn => {
+  list.querySelectorAll(".ct-delete-btn").forEach(btn => {
     btn.addEventListener("click", () => deleteCustomTemplate(parseInt(btn.dataset.index)));
   });
+  list.querySelectorAll(".ct-default-btn").forEach(btn => {
+    btn.addEventListener("click", () => setDefaultTemplate(parseInt(btn.dataset.index)));
+  });
+}
+
+async function setDefaultTemplate(index) {
+  _defaultTemplateId = _customTemplates[index].id;
+  await fetch("/api/templates/default", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ template_id: _defaultTemplateId }),
+  });
+  renderCustomTemplates();
+  showStatusMessage("Default template set");
 }
 
 async function saveCustomTemplate(index) {
@@ -563,7 +570,11 @@ async function saveCustomTemplate(index) {
 }
 
 async function deleteCustomTemplate(index) {
+  const removedId = _customTemplates[index].id;
   _customTemplates.splice(index, 1);
+  if (removedId === _defaultTemplateId && _customTemplates.length) {
+    _defaultTemplateId = _customTemplates[0].id;
+  }
   await saveAllCustomTemplates();
   renderCustomTemplates();
   showStatusMessage("Template deleted");
@@ -584,9 +595,12 @@ document.getElementById("add-template-btn").addEventListener("click", () => {
     prompt: "",
   });
   renderCustomTemplates();
-  // Focus the new template's name input
   const cards = document.querySelectorAll(".custom-template-card");
-  if (cards.length) cards[cards.length - 1].querySelector(".ct-name").focus();
+  if (cards.length) {
+    const last = cards[cards.length - 1];
+    last.classList.add("expanded");
+    last.querySelector(".ct-name").focus();
+  }
 });
 
 document.getElementById("reset-templates-btn").addEventListener("click", async () => {
@@ -595,6 +609,7 @@ document.getElementById("reset-templates-btn").addEventListener("click", async (
   });
   if (res.templates) {
     _customTemplates = res.templates;
+    _defaultTemplateId = _customTemplates.length ? _customTemplates[0].id : null;
     renderCustomTemplates();
     showStatusMessage("Default templates restored");
   }
@@ -611,6 +626,16 @@ document.getElementById("save-dictionary-btn").addEventListener("click", async (
   showStatusMessage("Dictionary saved");
 });
 
+// ── Dictionary sub-page navigation ─────────────────────
+document.getElementById("open-dictionary-btn").addEventListener("click", () => {
+  document.getElementById("settings-inner").style.display = "none";
+  document.getElementById("dictionary-subpage").style.display = "block";
+});
+
+document.getElementById("dictionary-back-btn").addEventListener("click", () => {
+  document.getElementById("dictionary-subpage").style.display = "none";
+  document.getElementById("settings-inner").style.display = "block";
+});
 
 document.getElementById("s-check-updates").addEventListener("click", async () => {
   const btn = document.getElementById("s-check-updates");

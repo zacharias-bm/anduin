@@ -282,6 +282,8 @@ class SystemAudioRecorder:
             if len(samples) == 0:
                 return
 
+            np.nan_to_num(samples, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
+
             # Debug: log first buffer info per stream
             if not self._debug_logged:
                 stream_type = "mic" if is_mic else "system"

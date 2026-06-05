@@ -378,7 +378,8 @@ body.dark-mode #on-device-subtitle {
   overflow-y: auto;
 }
 
-#settings-inner {
+#settings-inner,
+#dictionary-subpage {
   padding: 60px 80px;
   max-width: 640px;
   margin: 0 auto;
@@ -418,6 +419,35 @@ body.dark-mode #on-device-subtitle {
 .setting-row:last-child {
   border-bottom: none;
 }
+
+.setting-row-link {
+  cursor: pointer;
+  transition: background 0.15s;
+  margin: 0 -16px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  border-bottom: none;
+}
+.setting-row-link:hover { background: rgba(128,128,128,0.06); }
+
+.setting-chevron {
+  font-size: 11px;
+  color: var(--color-slate);
+  flex-shrink: 0;
+}
+
+.subpage-back-btn {
+  font-family: inherit;
+  font-size: 13px;
+  background: none;
+  border: none;
+  color: var(--color-slate);
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 12px;
+  transition: color 0.15s;
+}
+.subpage-back-btn:hover { color: var(--color-stone); }
 
 .setting-info {
   flex: 1;
@@ -715,13 +745,6 @@ body.dark-mode #on-device-subtitle {
   box-shadow: 0 4px 12px rgba(0,0,0,0.03);
 }
 
-#meeting-meta {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--color-slate);
-  margin-top: 16px;
-}
-
 #summary-card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -796,12 +819,37 @@ body.dark-mode #on-device-subtitle {
 /* Custom template editor in settings */
 .custom-template-card {
   border: 1px solid var(--color-border);
-  border-radius: 10px;
-  padding: 14px;
-  margin-bottom: 10px;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  overflow: hidden;
 }
 
-.custom-template-card input {
+.ct-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  user-select: none;
+}
+.ct-header:hover { background: rgba(128,128,128,0.06); }
+
+.ct-chevron {
+  font-size: 10px;
+  color: var(--color-slate);
+  transition: transform 0.15s;
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+}
+.custom-template-card.expanded .ct-chevron { transform: rotate(90deg); }
+
+.ct-name-wrap {
+  min-width: 0;
+  display: inline-flex;
+}
+
+.ct-name-wrap input {
   font-family: inherit;
   font-size: 13px;
   font-weight: 600;
@@ -809,60 +857,86 @@ body.dark-mode #on-device-subtitle {
   background: none;
   color: var(--color-stone);
   outline: none;
-  width: 100%;
-  margin-bottom: 8px;
   padding: 0;
+  width: 0;
+  min-width: 40px;
+  max-width: 100%;
 }
-.custom-template-card input::placeholder {
+.ct-name-wrap input::placeholder {
   color: var(--color-slate);
   opacity: 0.5;
 }
 
-.custom-template-card textarea {
+.ct-default-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+  line-height: 1;
+  opacity: 0.3;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.ct-default-btn:hover { opacity: 0.6; }
+.ct-default-btn.is-default { opacity: 1; }
+
+.ct-delete-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0 2px;
+  color: var(--color-slate);
+  opacity: 0.4;
+  transition: opacity 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.ct-delete-btn:hover { opacity: 1; color: #ff3b30; }
+
+.ct-body {
+  display: none;
+  padding: 0 10px 10px;
+}
+.custom-template-card.expanded .ct-body { display: block; }
+
+.ct-body textarea {
   width: 100%;
   font-family: inherit;
   font-size: 12px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   border: 1px solid rgba(128,128,128,0.2);
-  border-radius: 8px;
+  border-radius: 6px;
   background: rgba(128,128,128,0.04);
   color: var(--color-stone);
   outline: none;
   resize: vertical;
   line-height: 1.5;
-  min-height: 60px;
+  min-height: 240px;
 }
-.custom-template-card textarea:focus {
+.ct-body textarea:focus {
   border-color: rgba(128,128,128,0.4);
 }
 
-.custom-template-actions {
+.ct-body-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 6px;
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
-.custom-template-actions button {
+.template-save-btn {
   font-family: inherit;
   font-size: 12px;
-  padding: 5px 12px;
+  padding: 4px 12px;
   border-radius: 6px;
   border: none;
   cursor: pointer;
   transition: opacity 0.15s;
-}
-.custom-template-actions button:hover { opacity: 0.85; }
-
-.template-save-btn {
   background: var(--color-btn-bg);
   color: var(--color-btn-fg);
 }
-
-.template-delete-btn {
-  background: rgba(255,59,48,0.1);
-  color: #ff3b30;
-}
+.template-save-btn:hover { opacity: 0.85; }
 
 #summary-body {
   font-size: 16px;
