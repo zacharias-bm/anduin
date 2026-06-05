@@ -389,18 +389,27 @@ html, body {
 .setting-select {
   font-family: inherit;
   font-size: 12px;
-  padding: 6px 10px;
+  padding: 7px 28px 7px 10px;
   border: 1px solid rgba(128,128,128,0.2);
-  border-radius: 6px;
+  border-radius: 8px;
   background: rgba(128,128,128,0.06);
   color: var(--color-stone);
   flex-shrink: 0;
   cursor: pointer;
   outline: none;
-  max-width: 200px;
+  width: 200px;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%234A4E55' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  text-overflow: ellipsis;
 }
 .setting-select:focus {
   border-color: rgba(128,128,128,0.4);
+}
+.setting-select:hover {
+  background-color: rgba(128,128,128,0.1);
 }
 
 .setting-desc a {
@@ -414,17 +423,20 @@ html, body {
 #s-hf-token {
   font-family: 'Geist Mono', monospace;
   font-size: 12px;
-  padding: 6px 10px;
+  padding: 7px 10px;
   border: 1px solid rgba(128,128,128,0.2);
-  border-radius: 6px;
+  border-radius: 8px;
   background: rgba(128,128,128,0.06);
-  color: var(--text-primary);
+  color: var(--color-stone);
   width: 200px;
   flex-shrink: 0;
 }
 #s-hf-token:focus {
   outline: none;
   border-color: rgba(128,128,128,0.4);
+}
+#s-hf-token:hover {
+  background: rgba(128,128,128,0.1);
 }
 
 /* Toggle switch */
@@ -607,18 +619,25 @@ html, body {
   gap: 8px;
 }
 
+#template-select {
+  width: 160px;
+}
+
 #summarize-btn {
-  padding: 6px 14px;
+  padding: 7px 16px;
   font-family: inherit;
   font-size: 12px;
   font-weight: 600;
   background: var(--color-navy);
   color: white;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   transition: opacity 0.2s;
   white-space: nowrap;
+}
+#summarize-btn:hover:not(:disabled) {
+  opacity: 0.9;
 }
 
 #summarize-btn:disabled {
@@ -629,9 +648,9 @@ html, body {
 /* Custom template editor in settings */
 .custom-template-card {
   border: 1px solid var(--color-border);
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 8px;
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 10px;
 }
 
 .custom-template-card input {
@@ -643,16 +662,21 @@ html, body {
   color: var(--color-stone);
   outline: none;
   width: 100%;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  padding: 0;
+}
+.custom-template-card input::placeholder {
+  color: var(--color-slate);
+  opacity: 0.5;
 }
 
 .custom-template-card textarea {
   width: 100%;
   font-family: inherit;
   font-size: 12px;
-  padding: 8px;
-  border: 1px solid rgba(128,128,128,0.15);
-  border-radius: 6px;
+  padding: 10px 12px;
+  border: 1px solid rgba(128,128,128,0.2);
+  border-radius: 8px;
   background: rgba(128,128,128,0.04);
   color: var(--color-stone);
   outline: none;
@@ -660,22 +684,27 @@ html, body {
   line-height: 1.5;
   min-height: 60px;
 }
+.custom-template-card textarea:focus {
+  border-color: rgba(128,128,128,0.4);
+}
 
 .custom-template-actions {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
-  margin-top: 6px;
+  margin-top: 8px;
 }
 
 .custom-template-actions button {
   font-family: inherit;
-  font-size: 11px;
-  padding: 4px 10px;
-  border-radius: 5px;
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 6px;
   border: none;
   cursor: pointer;
+  transition: opacity 0.15s;
 }
+.custom-template-actions button:hover { opacity: 0.85; }
 
 .template-save-btn {
   background: var(--color-navy);
@@ -959,11 +988,17 @@ html, body {
   right: 0;
   background: var(--color-paper);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 4px;
   min-width: 200px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04);
   z-index: 100;
+  animation: dropdownIn 0.12s ease;
+}
+
+@keyframes dropdownIn {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .dropdown-item {
@@ -974,10 +1009,10 @@ html, body {
   background: none;
   color: var(--color-stone);
   font-family: inherit;
-  font-size: 12px;
+  font-size: 13px;
   text-align: left;
   cursor: pointer;
-  border-radius: 5px;
+  border-radius: 6px;
   transition: background 0.1s;
 }
 .dropdown-item:hover {
