@@ -36,15 +36,10 @@ from anduin import __version__
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-# Set this to your GitHub repo's latest release manifest URL.
-# For a private repo, you'll need a token (see _fetch_manifest).
 MANIFEST_URL = os.environ.get(
     "ANDUIN_UPDATE_URL",
     "https://api.github.com/repos/zacharias-bm/anduin/releases/latest",
 )
-
-# Optional GitHub token for private repos (set via env or keyring)
-GITHUB_TOKEN = os.environ.get("ANDUIN_GITHUB_TOKEN", "")
 
 ProgressCallback = Callable[[int, int], None]  # (bytes_downloaded, total_bytes)
 
@@ -64,7 +59,7 @@ def check_for_update() -> dict | None:
     try:
         manifest = _fetch_manifest()
         if manifest is None:
-            return None
+            raise ConnectionError("Could not reach update server")
 
         latest_version = manifest.get("version", "")
         if not latest_version or not _is_newer(latest_version, __version__):
@@ -146,14 +141,8 @@ def download_and_apply(
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 def _fetch_manifest() -> dict | None:
-    """Fetch the latest release manifest from GitHub.
-
-    For the GitHub Releases API, we parse the release body for a
-    latest.json code block, or look for a latest.json asset.
-    """
+    """Fetch the latest release manifest from GitHub."""
     headers = {"Accept": "application/vnd.github.v3+json"}
-    if GITHUB_TOKEN:
-        headers["Authorization"] = f"token {GITHUB_TOKEN}"
 
     try:
         resp = requests.get(MANIFEST_URL, headers=headers, timeout=10)
@@ -172,16 +161,7 @@ def _fetch_manifest() -> dict | None:
     # Look for a latest.json asset in the release
     for asset in release.get("assets", []):
         if asset["name"] == "latest.json":
-            asset_url = asset["browser_download_url"]
-            asset_headers = {}
-            if GITHUB_TOKEN:
-                # For private repos, use the API URL with Accept header
-                asset_url = asset["url"]
-                asset_headers = {
-                    "Authorization": f"token {GITHUB_TOKEN}",
-                    "Accept": "application/octet-stream",
-                }
-            r = requests.get(asset_url, headers=asset_headers, timeout=10)
+            r = requests.get(asset["browser_download_url"], timeout=10)
             r.raise_for_status()
             return r.json()
 
@@ -190,8 +170,6 @@ def _fetch_manifest() -> dict | None:
     for asset in release.get("assets", []):
         name = asset["name"].lower()
         dl_url = asset["browser_download_url"]
-        if GITHUB_TOKEN:
-            dl_url = asset["url"]  # Use API URL for private repos
         if "macos" in name and (name.endswith(".tar.gz") or name.endswith(".dmg")):
             manifest["macos"] = {"url": dl_url, "sha256": ""}
         elif "windows" in name and (name.endswith(".zip") or name.endswith(".exe")):
@@ -212,12 +190,7 @@ def _is_newer(latest: str, current: str) -> bool:
 
 
 def _download_file(url: str, dest: Path, progress: ProgressCallback | None):
-    headers = {}
-    if GITHUB_TOKEN:
-        headers["Authorization"] = f"token {GITHUB_TOKEN}"
-        headers["Accept"] = "application/octet-stream"
-
-    resp = requests.get(url, headers=headers, stream=True, timeout=300)
+    resp = requests.get(url, stream=True, timeout=300)
     resp.raise_for_status()
     total = int(resp.headers.get("Content-Length", 0))
     downloaded = 0
@@ -243,11 +216,20 @@ def _sha256(path: Path) -> str:
 
 def _extract(archive: Path, dest: Path):
     name = archive.name.lower()
+    dest = dest.resolve()
     if name.endswith(".tar.gz") or name.endswith(".tgz"):
         with tarfile.open(archive, "r:gz") as tf:
+            for member in tf.getmembers():
+                target = (dest / member.name).resolve()
+                if not str(target).startswith(str(dest)):
+                    raise ValueError(f"Path traversal detected: {member.name}")
             tf.extractall(dest)
     elif name.endswith(".zip"):
         with zipfile.ZipFile(archive, "r") as zf:
+            for info in zf.infolist():
+                target = (dest / info.filename).resolve()
+                if not str(target).startswith(str(dest)):
+                    raise ValueError(f"Path traversal detected: {info.filename}")
             zf.extractall(dest)
     else:
         raise ValueError(f"Unknown archive format: {archive.name}")
