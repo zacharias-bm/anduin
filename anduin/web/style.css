@@ -386,7 +386,14 @@ html, body {
   opacity: 0.9;
 }
 
-.setting-select {
+/* Custom select dropdown */
+.custom-select {
+  position: relative;
+  width: 200px;
+  flex-shrink: 0;
+}
+
+.custom-select-trigger {
   font-family: inherit;
   font-size: 12px;
   padding: 7px 28px 7px 10px;
@@ -394,22 +401,71 @@ html, body {
   border-radius: 8px;
   background: rgba(128,128,128,0.06);
   color: var(--color-stone);
-  flex-shrink: 0;
   cursor: pointer;
-  outline: none;
-  width: 200px;
-  -webkit-appearance: none;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%234A4E55' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
   text-overflow: ellipsis;
+  position: relative;
+  transition: background 0.15s, border-color 0.15s;
 }
-.setting-select:focus {
+.custom-select-trigger::after {
+  content: "";
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--color-slate);
+}
+.custom-select-trigger:hover {
+  background: rgba(128,128,128,0.1);
+}
+.custom-select.open .custom-select-trigger {
   border-color: rgba(128,128,128,0.4);
 }
-.setting-select:hover {
-  background-color: rgba(128,128,128,0.1);
+
+.custom-select-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 100%;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--color-paper);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04);
+  z-index: 150;
+  animation: dropdownIn 0.12s ease;
+}
+.custom-select.open .custom-select-menu {
+  display: block;
+}
+
+.custom-select-option {
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--color-stone);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.1s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.custom-select-option:hover {
+  background: rgba(128,128,128,0.1);
+}
+.custom-select-option.selected {
+  font-weight: 600;
+  color: var(--color-navy);
 }
 
 .setting-desc a {
@@ -621,6 +677,9 @@ html, body {
 
 #template-select {
   width: 160px;
+}
+#template-select .custom-select-menu {
+  min-width: 180px;
 }
 
 #summarize-btn {

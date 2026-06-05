@@ -59,6 +59,53 @@ function formatEyebrow(dateStr) {
   }
 }
 
+// ── Custom select component ────────────────────────────
+
+function initCustomSelect(el, options, selectedValue, onChange) {
+  const selected = options.find(o => String(o.value) === String(selectedValue)) || options[0];
+  el.dataset.value = selected ? selected.value : "";
+
+  el.innerHTML = `
+    <div class="custom-select-trigger">${selected ? esc(selected.label) : ""}</div>
+    <div class="custom-select-menu">
+      ${options.map(o => `
+        <div class="custom-select-option${String(o.value) === String(selectedValue) ? " selected" : ""}"
+             data-value="${esc(String(o.value))}">${esc(o.label)}</div>
+      `).join("")}
+    </div>
+  `;
+
+  const trigger = el.querySelector(".custom-select-trigger");
+  const menu = el.querySelector(".custom-select-menu");
+
+  trigger.addEventListener("click", (e) => {
+    e.stopPropagation();
+    // Close any other open selects
+    document.querySelectorAll(".custom-select.open").forEach(s => {
+      if (s !== el) s.classList.remove("open");
+    });
+    el.classList.toggle("open");
+  });
+
+  menu.querySelectorAll(".custom-select-option").forEach(opt => {
+    opt.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const val = opt.dataset.value;
+      el.dataset.value = val;
+      trigger.textContent = opt.textContent;
+      menu.querySelectorAll(".custom-select-option").forEach(o => o.classList.remove("selected"));
+      opt.classList.add("selected");
+      el.classList.remove("open");
+      if (onChange) onChange(val);
+    });
+  });
+}
+
+// Close all custom selects when clicking outside
+document.addEventListener("click", () => {
+  document.querySelectorAll(".custom-select.open").forEach(s => s.classList.remove("open"));
+});
+
 async function loadMeetings(query, autoSelect = false) {
   const url = query
     ? `/api/meetings/search?q=${encodeURIComponent(query)}`
@@ -230,10 +277,9 @@ document.getElementById("meeting-title").addEventListener("keydown", (e) => {
 // Template picker
 async function loadTemplateSelect() {
   const data = await fetchJSON("/api/templates");
-  const select = document.getElementById("template-select");
-  select.innerHTML = data.templates.map(t =>
-    `<option value="${esc(t.id)}">${esc(t.name)}</option>`
-  ).join("");
+  const el = document.getElementById("template-select");
+  const options = data.templates.map(t => ({ value: t.id, label: t.name }));
+  initCustomSelect(el, options, el.dataset.value || "standard", null);
 }
 
 // Summarize / Re-summarize button
@@ -243,7 +289,7 @@ if (summarizeBtn) {
     if (!currentMeetingId) return;
     summarizeBtn.disabled = true;
     summarizeBtn.textContent = "Summarizing...";
-    const templateId = document.getElementById("template-select").value;
+    const templateId = document.getElementById("template-select").dataset.value;
     await fetch(`/api/meetings/${currentMeetingId}/summarize`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -369,17 +415,23 @@ async function loadSettingsPanel() {
 
   // Load audio devices
   const deviceData = await fetchJSON("/api/devices");
-  const micSelect = document.getElementById("s-mic-device");
-  micSelect.innerHTML = '<option value="">System default</option>' +
-    deviceData.inputs.map(d =>
-      `<option value="${d.index}" ${d.index === deviceData.selected_input ? "selected" : ""}>${esc(d.name)}</option>`
-    ).join("");
+  const micOptions = [{ value: "", label: "System default" },
+    ...deviceData.inputs.map(d => ({ value: String(d.index), label: d.name }))];
+  initCustomSelect(
+    document.getElementById("s-mic-device"),
+    micOptions,
+    deviceData.selected_input != null ? String(deviceData.selected_input) : "",
+    val => saveSetting("device_inperson", val === "" ? null : parseInt(val))
+  );
 
-  const speakerSelect = document.getElementById("s-speaker-device");
-  speakerSelect.innerHTML = '<option value="">System default</option>' +
-    deviceData.outputs.map(d =>
-      `<option value="${d.index}" ${d.index === deviceData.selected_output ? "selected" : ""}>${esc(d.name)}</option>`
-    ).join("");
+  const speakerOptions = [{ value: "", label: "System default" },
+    ...deviceData.outputs.map(d => ({ value: String(d.index), label: d.name }))];
+  initCustomSelect(
+    document.getElementById("s-speaker-device"),
+    speakerOptions,
+    deviceData.selected_output != null ? String(deviceData.selected_output) : "",
+    val => saveSetting("device_speaker", val === "" ? null : parseInt(val))
+  );
 }
 
 async function saveSetting(key, value) {
@@ -504,15 +556,6 @@ document.getElementById("save-dictionary-btn").addEventListener("click", async (
   showStatusMessage("Dictionary saved");
 });
 
-document.getElementById("s-mic-device").addEventListener("change", e => {
-  const val = e.target.value;
-  saveSetting("device_inperson", val === "" ? null : parseInt(val));
-});
-
-document.getElementById("s-speaker-device").addEventListener("change", e => {
-  const val = e.target.value;
-  saveSetting("device_speaker", val === "" ? null : parseInt(val));
-});
 
 document.getElementById("settings-btn").addEventListener("click", () => {
   if (settingsOpen) {
