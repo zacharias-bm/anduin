@@ -804,6 +804,12 @@ html, body {
   color: #3C3C40;
 }
 
+#transcript-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 #transcript-section h3 {
   font-size: 14px;
   font-weight: 700;

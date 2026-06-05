@@ -5,6 +5,7 @@ const SPEAKER_COLORS = [
 
 let currentMeetingId = null;
 let speakerColorMap = {};
+let currentMeetingRaw = null; // store raw meeting data for copy
 
 async function fetchJSON(url, opts) {
   const res = await fetch(url, opts);
@@ -151,6 +152,7 @@ async function selectMeeting(id) {
 }
 
 function renderMeeting(m) {
+  currentMeetingRaw = m;
   document.getElementById("empty-state").style.display = "none";
   document.getElementById("meeting-view").style.display = "block";
 
@@ -252,6 +254,24 @@ function esc(s) {
   d.textContent = s;
   return d.innerHTML;
 }
+
+// Copy buttons
+document.getElementById("copy-summary-btn").addEventListener("click", () => {
+  if (currentMeetingRaw && currentMeetingRaw.summary) {
+    navigator.clipboard.writeText(currentMeetingRaw.summary);
+    showStatusMessage("Summary copied");
+  }
+});
+
+document.getElementById("copy-transcript-btn").addEventListener("click", () => {
+  if (currentMeetingRaw && currentMeetingRaw.transcript) {
+    const text = currentMeetingRaw.transcript
+      .map(s => `[${s.speaker}]: ${s.text}`)
+      .join("\n");
+    navigator.clipboard.writeText(text);
+    showStatusMessage("Transcript copied");
+  }
+});
 
 // Title editing
 document.getElementById("meeting-title").addEventListener("blur", async (e) => {
