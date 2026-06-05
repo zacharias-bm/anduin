@@ -40,7 +40,7 @@ from anduin import __version__
 # For a private repo, you'll need a token (see _fetch_manifest).
 MANIFEST_URL = os.environ.get(
     "ANDUIN_UPDATE_URL",
-    "https://api.github.com/repos/BackingMinds/anduin/releases/latest",
+    "https://api.github.com/repos/zacharias-bm/anduin/releases/latest",
 )
 
 # Optional GitHub token for private repos (set via env or keyring)
