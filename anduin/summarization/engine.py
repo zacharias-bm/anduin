@@ -67,6 +67,9 @@ Transcript:
 DEFAULT_TEMPLATE = "standard"
 
 
+MIN_WORDS_FOR_SUMMARY = 30  # Below this, transcript is too short to summarize
+
+
 def summarize(
     segments: list[dict],
     model: str,
@@ -78,8 +81,17 @@ def summarize(
     if not transcript.strip():
         return "No speech was detected in the recording, so no summary could be generated."
 
+    # Guard against hallucinating summaries for trivial transcripts
+    word_count = len(transcript.split())
+    if word_count < MIN_WORDS_FOR_SUMMARY:
+        print(f"[engine] transcript too short ({word_count} words), skipping summary", flush=True)
+        return (
+            "This recording was too short to generate a meaningful summary.\n\n"
+            f"**Transcript** ({word_count} words):\n\n"
+            + "\n".join(f"> {s['text']}" for s in segments if s.get("text", "").strip())
+        )
+
     if custom_prompt:
-        # Custom template — inject transcript
         prompt = custom_prompt.replace("{transcript}", transcript)
     elif template_id in BUILTIN_TEMPLATES:
         prompt = BUILTIN_TEMPLATES[template_id]["prompt"].format(transcript=transcript)

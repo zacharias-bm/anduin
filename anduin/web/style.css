@@ -35,15 +35,17 @@ body.dark-mode {
   --color-bg: #1C1C1E;
   --color-surface: #2C2C2E;
   --color-paper: #1C1C1E;
-  --color-stone: #D1D1D6;
-  --color-slate: #8E8E93;
+  --color-stone: #E5E5EA;
+  --color-slate: #98989D;
   --color-navy: #1C1C1E;
-  --color-accent: #D1D1D6;
+  --color-accent: #7FA0C2;
+  --color-river-mid: #7FA0C2;
+  --color-river-light: #CFE0EF;
   --color-border: #38383A;
   --color-hover: rgba(255, 255, 255, 0.06);
   --color-active: rgba(255, 255, 255, 0.1);
   --color-btn-bg: #2C2C2E;
-  --color-btn-fg: #D1D1D6;
+  --color-btn-fg: #E5E5EA;
   --color-card-bg: #2C2C2E;
   --color-input-bg: rgba(255,255,255,0.07);
   --color-toggle-off: #48484A;
@@ -240,10 +242,10 @@ body.dark-mode #on-device-card {
   border: 1px solid var(--color-border);
 }
 body.dark-mode #on-device-title {
-  color: #D1D1D6;
+  color: #CFE0EF;
 }
 body.dark-mode #on-device-subtitle {
-  color: #8E8E93;
+  color: #7FA0C2;
 }
 
 #record-btn.recording {
@@ -722,7 +724,7 @@ body.dark-mode #on-device-subtitle {
 
 #summary-card {
   background: var(--color-surface);
-  border: 1px solid #EAE8E0;
+  border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 32px;
   margin-bottom: 60px;

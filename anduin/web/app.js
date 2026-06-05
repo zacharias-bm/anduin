@@ -1,6 +1,6 @@
 const SPEAKER_COLORS = [
-  "#007aff", "#34c759", "#ff9500", "#af52de",
-  "#ff3b30", "#5ac8fa", "#ffcc00", "#ff2d55",
+  "#3E5C82", "#5E7A8C", "#7A8C5E", "#8C6E5E",
+  "#6E5E8C", "#7FA0C2", "#8C7A5E", "#5E8C7A",
 ];
 
 let currentMeetingId = null;
