@@ -94,9 +94,13 @@ class AnduinApp(rumps.App):
             rumps.MenuItem("Stop Recording", callback=self._stop_recording),
             None,
             rumps.MenuItem("Settings…", callback=self._open_settings),
+            rumps.MenuItem("Check for Updates…", callback=self._check_updates),
             rumps.MenuItem("Quit", callback=self._quit),
         ]
         self.menu["Stop Recording"].set_callback(None)
+
+        # Check for updates in background on launch
+        self._check_updates_async()
 
     def _quit(self, _):
         import os
@@ -243,6 +247,48 @@ class AnduinApp(rumps.App):
         # Open the app window and navigate to the settings panel
         self._window.open()
         self._window.evaluate_js("showSettings()")
+
+    # ── Updates ───────────────────────────────────────────────────────────────
+
+    def _check_updates_async(self):
+        """Background update check on launch — non-intrusive."""
+        def _run():
+            import time
+            time.sleep(5)  # Let the app finish launching first
+            try:
+                from anduin.updater import check_for_update
+                update = check_for_update()
+                if update:
+                    version = update["version"]
+                    print(f"[updater] update available: v{version}", flush=True)
+                    self._pending_update = update
+                    self._event_bus.publish("update_available", {"version": version})
+            except Exception as e:
+                print(f"[updater] background check failed: {e}", flush=True)
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _check_updates(self, _):
+        """Manual update check from the menu."""
+        def _run():
+            try:
+                from anduin.updater import check_for_update, download_and_apply, current_version
+                self._event_bus.publish("pipeline", {"stage": "update", "message": "Checking for updates..."})
+                update = check_for_update()
+                if update:
+                    version = update["version"]
+                    self._event_bus.publish("pipeline", {"stage": "update", "message": f"Downloading v{version}..."})
+                    download_and_apply(update)
+                else:
+                    self._event_bus.publish("pipeline", {"stage": "update", "message": f"You're on the latest version (v{current_version()})"})
+                    import time
+                    time.sleep(3)
+                    self._event_bus.publish("pipeline", {"stage": "done", "message": ""})
+            except Exception as e:
+                self._event_bus.publish("app_error", {"message": f"Update check failed: {e}"})
+
+        self._window.open()
+        threading.Thread(target=_run, daemon=True).start()
 
     # ── Ollama lifecycle ──────────────────────────────────────────────────────
 

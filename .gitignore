@@ -2,13 +2,17 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
+*.dist-info/
 dist/
 *.egg
 
-# Briefcase build artifacts
+# Build artifacts
 .briefcase/
 build/
 logs/
+*.spec.bak
+*.dmg
+*.tar.gz
 
 # macOS
 .DS_Store

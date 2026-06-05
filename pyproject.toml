@@ -1,5 +1,5 @@
 [build-system]
-requires = ["briefcase"]
+requires = ["setuptools"]
 
 [project]
 name = "anduin"
@@ -8,6 +8,9 @@ requires-python = ">=3.9"
 
 [project.scripts]
 anduin = "anduin.ui.menubar:main"
+
+[project.optional-dependencies]
+dev = ["pyinstaller"]
 
 [tool.briefcase]
 project_name = "Anduin"
