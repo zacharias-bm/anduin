@@ -922,6 +922,19 @@ body.dark-mode #on-device-subtitle {
   color: var(--color-stone);
 }
 
+.segment-no-speaker {
+  gap: 16px;
+}
+
+.segment-time-inline {
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+  color: var(--color-slate);
+  flex-shrink: 0;
+  min-width: 44px;
+  padding-top: 3px;
+}
+
 #status-bar {
   background: var(--color-surface);
   color: var(--color-stone);

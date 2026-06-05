@@ -198,43 +198,58 @@ function renderMeeting(m) {
 function renderTranscript(segments) {
   const container = document.getElementById("transcript");
   if (!segments.length) {
-    container.innerHTML = '<div style="color:var(--text-tertiary)">No transcript available.</div>';
+    container.innerHTML = '<div style="color:var(--color-slate)">No transcript available.</div>';
     return;
   }
-  container.innerHTML = segments
-    .map((s) => {
-      const color = speakerColor(s.speaker);
-      return `<div class="segment">
-        <div class="segment-speaker">
-          <div class="speaker-name" style="color:${color}" contenteditable="true" data-original="${esc(s.speaker)}">${esc(s.speaker)}</div>
-          <div class="segment-time">${formatTimestamp(s.start)}</div>
-        </div>
-        <div class="segment-text">${esc(s.text || "")}</div>
-      </div>`;
-    })
-    .join("");
 
-  // Speaker renaming
-  container.querySelectorAll(".speaker-name").forEach((el) => {
-    el.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        el.blur();
-      }
+  // Detect if diarization was used (all speakers = "Speaker" means no diarization)
+  const speakers = new Set(segments.map(s => s.speaker));
+  const hasDiarization = !(speakers.size === 1 && speakers.has("Speaker"));
+
+  if (hasDiarization) {
+    container.innerHTML = segments
+      .map((s) => {
+        const color = speakerColor(s.speaker);
+        return `<div class="segment">
+          <div class="segment-speaker">
+            <div class="speaker-name" style="color:${color}" contenteditable="true" data-original="${esc(s.speaker)}">${esc(s.speaker)}</div>
+            <div class="segment-time">${formatTimestamp(s.start)}</div>
+          </div>
+          <div class="segment-text">${esc(s.text || "")}</div>
+        </div>`;
+      })
+      .join("");
+
+    // Speaker renaming
+    container.querySelectorAll(".speaker-name").forEach((el) => {
+      el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          el.blur();
+        }
+      });
+      el.addEventListener("blur", async () => {
+        const oldName = el.dataset.original;
+        const newName = el.textContent.trim();
+        if (oldName && newName && oldName !== newName) {
+          await fetch(`/api/meetings/${currentMeetingId}/rename_speaker`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ old_name: oldName, new_name: newName }),
+          });
+          selectMeeting(currentMeetingId);
+        }
+      });
     });
-    el.addEventListener("blur", async () => {
-      const oldName = el.dataset.original;
-      const newName = el.textContent.trim();
-      if (oldName && newName && oldName !== newName) {
-        await fetch(`/api/meetings/${currentMeetingId}/rename_speaker`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ old_name: oldName, new_name: newName }),
-        });
-        selectMeeting(currentMeetingId);
-      }
-    });
-  });
+  } else {
+    // No diarization — just timestamps + text
+    container.innerHTML = segments
+      .map((s) => `<div class="segment segment-no-speaker">
+        <div class="segment-time-inline">${formatTimestamp(s.start)}</div>
+        <div class="segment-text">${esc(s.text || "")}</div>
+      </div>`)
+      .join("");
+  }
 }
 
 function renderMarkdown(text) {
