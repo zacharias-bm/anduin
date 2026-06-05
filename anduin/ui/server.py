@@ -78,7 +78,10 @@ class _Handler(BaseHTTPRequestHandler):
                 self._json({"error": "not found"}, 404)
 
         elif path == "/api/status":
-            self._json(getattr(self.server, "_app_status", {"recording": False, "pipeline_stage": None}))
+            from anduin import __version__
+            status = getattr(self.server, "_app_status", {"recording": False, "pipeline_stage": None})
+            status["version"] = __version__
+            self._json(status)
 
         elif path == "/api/settings":
             self._json({
@@ -281,6 +284,12 @@ class _Handler(BaseHTTPRequestHandler):
         elif path == "/api/stop":
             if hasattr(self.server, "_app"):
                 self.server._app._cmd_queue.put(("stop", None))
+                self._json({"ok": True})
+            else:
+                self._json({"error": "app not linked"}, 500)
+        elif path == "/api/check-update":
+            if hasattr(self.server, "_app"):
+                self.server._app._check_updates(None)
                 self._json({"ok": True})
             else:
                 self._json({"error": "app not linked"}, 500)

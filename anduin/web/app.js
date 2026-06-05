@@ -452,6 +452,14 @@ async function loadSettingsPanel() {
     deviceData.selected_output != null ? String(deviceData.selected_output) : "",
     val => saveSetting("device_speaker", val === "" ? null : parseInt(val))
   );
+
+  // Version info
+  try {
+    const status = await fetchJSON("/api/status");
+    document.getElementById("s-version-desc").textContent = `v${status.version || "0.1.0"}`;
+  } catch (e) {
+    document.getElementById("s-version-desc").textContent = "";
+  }
 }
 
 async function saveSetting(key, value) {
@@ -576,6 +584,21 @@ document.getElementById("save-dictionary-btn").addEventListener("click", async (
   showStatusMessage("Dictionary saved");
 });
 
+
+document.getElementById("s-check-updates").addEventListener("click", async () => {
+  const btn = document.getElementById("s-check-updates");
+  btn.disabled = true;
+  btn.textContent = "Checking...";
+  try {
+    await fetch("/api/check-update", { method: "POST" });
+  } catch (e) {
+    showStatusMessage("Update check failed");
+  }
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.textContent = "Check for updates";
+  }, 5000);
+});
 
 document.getElementById("settings-btn").addEventListener("click", () => {
   if (settingsOpen) {
