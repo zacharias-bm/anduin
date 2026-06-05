@@ -45,6 +45,21 @@ a = Analysis(
         "torchaudio",
         # Hugging Face
         "huggingface_hub",
+        # pyannote / lightning / torchmetrics chain
+        "scipy",
+        "scipy.signal",
+        "scipy.spatial",
+        "scipy.fft",
+        "scipy.linalg",
+        "lightning",
+        "lightning.pytorch",
+        "pytorch_lightning",
+        "torchmetrics",
+        "pyannote",
+        "pyannote.audio",
+        # ScreenCaptureKit
+        "ScreenCaptureKit",
+        "CoreMedia",
         # Misc
         "psutil",
         "requests",
@@ -58,7 +73,6 @@ a = Analysis(
         "tkinter",
         "_tkinter",
         "matplotlib",
-        "scipy.spatial",
         "IPython",
         "notebook",
         "pytest",
@@ -107,7 +121,7 @@ if sys.platform == "darwin":
     app = BUNDLE(
         coll,
         name="Anduin.app",
-        icon=None,  # TODO: add .icns icon file
+        icon=str(project_root / "resources" / "Anduin.icns"),
         bundle_identifier="com.backingminds.anduin",
         info_plist={
             "CFBundleShortVersionString": "0.1.0",

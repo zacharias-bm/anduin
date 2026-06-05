@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Callable
 
 from anduin.capture.extract import extract_audio, needs_extraction
-from anduin.diarization.diarizer import diarize
 from anduin.hardware.detect import detect as detect_hardware
 from anduin.merge.aligner import align, write_transcript
 from anduin.storage.store import get_config, get_speaker_names, meeting_dir, save_summary
@@ -49,6 +48,7 @@ def run(
 
     if diarization_enabled:
         _p("diarize", "Identifying speakers...")
+        from anduin.diarization.diarizer import diarize
         diarization = diarize(audio_path)
         print(f"[pipeline] diarize: found {len(diarization)} segments", flush=True)
     else:
