@@ -59,7 +59,7 @@ cat > dist/latest.json <<EOF
 {
     "version": "${VERSION}",
     "macos": {
-        "url": "Anduin-${VERSION}-macos.tar.gz",
+        "url": "https://github.com/zacharias-bm/anduin/releases/download/v${VERSION}/Anduin-${VERSION}-macos.tar.gz",
         "sha256": "${TARBALL_SHA}"
     }
 }

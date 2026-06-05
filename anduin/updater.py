@@ -71,9 +71,13 @@ def check_for_update() -> dict | None:
             print(f"[updater] no asset for platform {plat}", flush=True)
             return None
 
+        url = asset["url"]
+        if not url.startswith("http"):
+            url = f"https://github.com/zacharias-bm/anduin/releases/download/v{latest_version}/{url}"
+
         return {
             "version": latest_version,
-            "url": asset["url"],
+            "url": url,
             "sha256": asset.get("sha256", ""),
         }
     except Exception as e:

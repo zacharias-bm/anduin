@@ -275,13 +275,22 @@ class AnduinApp(rumps.App):
                 update = check_for_update()
                 if update:
                     version = update["version"]
+                    def _progress(downloaded, total):
+                        if total > 0:
+                            pct = round(downloaded / total * 100)
+                            self._event_bus.publish("pipeline", {"stage": "update", "message": f"Downloading v{version} — {pct}%"})
                     self._event_bus.publish("pipeline", {"stage": "update", "message": f"Downloading v{version}..."})
-                    download_and_apply(update)
+                    download_and_apply(update, progress=_progress)
                 else:
                     self._event_bus.publish("pipeline", {"stage": "update", "message": f"You're on the latest version (v{current_version()})"})
                     import time
                     time.sleep(3)
                     self._event_bus.publish("pipeline", {"stage": "done", "message": ""})
+            except ConnectionError:
+                self._event_bus.publish("pipeline", {"stage": "update", "message": "Couldn't check for updates — no internet or server unreachable"})
+                import time
+                time.sleep(4)
+                self._event_bus.publish("pipeline", {"stage": "done", "message": ""})
             except Exception as e:
                 self._event_bus.publish("app_error", {"message": f"Update check failed: {e}"})
 
