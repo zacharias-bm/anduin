@@ -2,8 +2,6 @@ from __future__ import annotations
 """First-launch setup wizard. Runs as a blocking tkinter window before the menu bar app starts."""
 import subprocess
 import threading
-import tkinter as tk
-from tkinter import ttk
 
 from anduin.hardware.detect import detect as detect_hardware
 from anduin.setup import models, ollama
@@ -381,6 +379,12 @@ class WizardApp(tk.Tk):
 # ── Public API ─────────────────────────────────────────────────────────────────
 
 def run_wizard():
+    import tkinter
+    import tkinter.ttk
+    # Inject into module globals so WizardApp and helpers can use them
+    global tk, ttk
+    tk = tkinter
+    ttk = tkinter.ttk
     app = WizardApp()
     app.mainloop()
 
