@@ -61,9 +61,12 @@ class _WizardHandler(BaseHTTPRequestHandler):
 
         elif path == "/api/wizard/ollama/status":
             model = self.hw["llm_model"]
+            installed = ollama.is_installed()
+            running = ollama.is_running() if installed else False
             self._json({
-                "installed": ollama.is_installed(),
-                "model_pulled": ollama.model_is_pulled(model) if ollama.is_installed() else False,
+                "installed": installed,
+                "running": running,
+                "model_pulled": ollama.model_is_pulled(model) if running else False,
             })
 
         elif path == "/api/wizard/ollama/progress":
@@ -82,6 +85,25 @@ class _WizardHandler(BaseHTTPRequestHandler):
         elif path == "/api/wizard/ollama/pull":
             self._json({"ok": True})
             threading.Thread(target=self._pull_ollama, daemon=True).start()
+
+        elif path == "/api/wizard/ollama/open-download":
+            import subprocess
+            subprocess.Popen(["open", "https://ollama.com/download/mac"])
+            self._json({"ok": True})
+
+        elif path == "/api/wizard/ollama/launch":
+            import subprocess
+            subprocess.Popen(["open", "-a", "Ollama"])
+            self._json({"ok": True})
+
+        elif path == "/api/wizard/focus":
+            try:
+                import AppKit
+                app = AppKit.NSApplication.sharedApplication()
+                app.activateIgnoringOtherApps_(True)
+            except Exception:
+                pass
+            self._json({"ok": True})
 
         elif path == "/api/wizard/permission":
             granted = self._request_permission()

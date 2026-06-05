@@ -196,9 +196,10 @@
     <div class="wizard-title">Downloading LLM</div>
     <div class="wizard-subtitle" id="ollama-subtitle"></div>
     <div id="ollama-install-prompt" style="display:none">
+      <div class="progress-text" id="ollama-detect-status">Checking for Ollama…</div>
       <button class="wizard-btn" id="ollama-download-btn">Download Ollama</button>
       <br>
-      <button class="wizard-btn wizard-btn-secondary" onclick="checkOllama()">I've installed it</button>
+      <button class="wizard-btn wizard-btn-secondary" id="ollama-recheck-btn">I've installed it</button>
     </div>
     <div id="ollama-progress-area" style="display:none">
       <div class="progress-bar-container"><div class="progress-bar-fill" id="ollama-progress"></div></div>
@@ -290,6 +291,7 @@ async function initWhisper() {
   }
 
   // Start download
+  document.getElementById("whisper-status").textContent = "Loading…";
   fetch("/api/wizard/whisper/download", { method: "POST" });
 
   // Poll progress
@@ -297,11 +299,9 @@ async function initWhisper() {
     const p = await fetchJSON("/api/wizard/whisper/progress");
     const pct = p.total > 0 ? Math.round(p.downloaded / p.total * 100) : 0;
     document.getElementById("whisper-progress").style.width = pct + "%";
-    const mbDone = (p.downloaded / 1e6).toFixed(0);
-    const mbTotal = (p.total / 1e6).toFixed(0);
-    document.getElementById("whisper-status").textContent = p.total > 0
-      ? `${mbDone} / ${mbTotal} MB` + (p.filename ? ` — ${p.filename}` : "")
-      : (p.filename || "Starting…");
+    if (p.total > 0) {
+      document.getElementById("whisper-status").textContent = `Downloading model — ${pct}%`;
+    }
 
     if (p.done) {
       clearInterval(poll);
@@ -321,30 +321,75 @@ async function initWhisper() {
 }
 
 // ── Step 2: Ollama ──────────────────────────────────
-async function initOllama() {
-  checkOllama();
+let _ollamaDetectInterval = null;
+
+async function launchAndWaitForOllama() {
+  await fetch("/api/wizard/ollama/launch", { method: "POST" });
+  // Wait for Ollama API to become responsive (up to 30s)
+  for (let i = 0; i < 60; i++) {
+    await new Promise(r => setTimeout(r, 500));
+    try {
+      const s = await fetchJSON("/api/wizard/ollama/status");
+      if (s.running) {
+        await fetch("/api/wizard/focus", { method: "POST" });
+        return;
+      }
+    } catch (e) {}
+  }
+  await fetch("/api/wizard/focus", { method: "POST" });
 }
 
-async function checkOllama() {
+async function initOllama() {
+  if (_ollamaDetectInterval) { clearInterval(_ollamaDetectInterval); _ollamaDetectInterval = null; }
+
   const hw = await fetchJSON("/api/wizard/hardware");
   document.getElementById("ollama-subtitle").textContent = hw.llm_model;
 
   const status = await fetchJSON("/api/wizard/ollama/status");
+
   if (!status.installed) {
+    // Show install prompt and poll for installation
     document.getElementById("ollama-install-prompt").style.display = "block";
     document.getElementById("ollama-progress-area").style.display = "none";
     document.getElementById("ollama-btn").style.display = "none";
+    document.getElementById("ollama-detect-status").textContent = "Ollama is not installed.";
+
     document.getElementById("ollama-download-btn").onclick = () => {
-      window.open("https://ollama.com/download/mac");
+      fetch("/api/wizard/ollama/open-download", { method: "POST" });
     };
+    document.getElementById("ollama-recheck-btn").onclick = () => {
+      document.getElementById("ollama-detect-status").textContent = "Checking…";
+      initOllama();
+    };
+
+    // Auto-detect every 2 seconds in case user installs it
+    _ollamaDetectInterval = setInterval(async () => {
+      const s = await fetchJSON("/api/wizard/ollama/status");
+      if (s.installed) {
+        clearInterval(_ollamaDetectInterval);
+        _ollamaDetectInterval = null;
+        document.getElementById("ollama-detect-status").textContent = "Ollama detected — launching…";
+        await launchAndWaitForOllama();
+        initOllama();
+      }
+    }, 2000);
     return;
   }
 
+  // Ollama is installed — switch to progress view
   document.getElementById("ollama-install-prompt").style.display = "none";
   document.getElementById("ollama-progress-area").style.display = "block";
   document.getElementById("ollama-btn").style.display = "inline-block";
 
-  if (status.model_pulled) {
+  // Make sure Ollama is actually running before pulling
+  if (!status.running) {
+    document.getElementById("ollama-status").textContent = "Launching Ollama…";
+    await launchAndWaitForOllama();
+  }
+
+  // Re-check after ensuring it's running
+  const freshStatus = await fetchJSON("/api/wizard/ollama/status");
+  if (freshStatus.model_pulled) {
     document.getElementById("ollama-progress").style.width = "100%";
     document.getElementById("ollama-status").textContent = "Already downloaded.";
     document.getElementById("ollama-btn").textContent = "Continue";
@@ -352,20 +397,20 @@ async function checkOllama() {
     return;
   }
 
+  // Auto-start model pull
   document.getElementById("ollama-btn").disabled = true;
   document.getElementById("ollama-btn").textContent = "Downloading…";
+  document.getElementById("ollama-status").textContent = "Loading…";
 
-  // Start pull
   fetch("/api/wizard/ollama/pull", { method: "POST" });
 
   const poll = setInterval(async () => {
     const p = await fetchJSON("/api/wizard/ollama/progress");
     const pct = p.total > 0 ? Math.round(p.done / p.total * 100) : 0;
     document.getElementById("ollama-progress").style.width = pct + "%";
-    const mbDone = (p.done / 1e6).toFixed(0);
-    const mbTotal = (p.total / 1e6).toFixed(0);
-    document.getElementById("ollama-status").textContent = p.total > 0
-      ? `${mbDone} / ${mbTotal} MB` : "Starting…";
+    if (p.total > 0) {
+      document.getElementById("ollama-status").textContent = `Downloading model — ${pct}%`;
+    }
 
     if (p.complete) {
       clearInterval(poll);
@@ -379,7 +424,7 @@ async function checkOllama() {
       document.getElementById("ollama-status").innerHTML = `<span class="error-text">${p.error}</span>`;
       document.getElementById("ollama-btn").textContent = "Retry";
       document.getElementById("ollama-btn").disabled = false;
-      document.getElementById("ollama-btn").onclick = () => { showStep(2); };
+      document.getElementById("ollama-btn").onclick = () => { initOllama(); };
     }
   }, 500);
 }

@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 import os
+from pathlib import Path
 import shutil
 import subprocess
 import time
@@ -17,7 +18,9 @@ _we_started_ollama = False
 
 
 def is_installed() -> bool:
-    return shutil.which("ollama") is not None
+    if shutil.which("ollama") is not None:
+        return True
+    return Path("/Applications/Ollama.app").exists()
 
 
 def is_running() -> bool:
