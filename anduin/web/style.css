@@ -1,20 +1,46 @@
 :root {
   --sidebar-width: 260px;
-  
-  /* Brand Palette - Warm Minimalist */
+
+  /* Brand Palette — Light (default) */
+  --color-bg: #F6F4EE;
+  --color-surface: #FFFFFF;
   --color-paper: #F6F4EE;
   --color-stone: #1B1B1F;
   --color-slate: #4A4E55;
   --color-navy: #0E1B2E;
+  --color-deep: #0A1424;
   --color-river-mid: #7FA0C2;
   --color-river-light: #CFE0EF;
+  --color-river-deep: #3E5C82;
   --color-border: #E5E2D9;
-  
+  --color-hover: rgba(0, 0, 0, 0.03);
+  --color-active: rgba(0, 0, 0, 0.05);
+  --color-btn-bg: #0E1B2E;
+  --color-btn-fg: #FFFFFF;
+  --color-card-bg: #FFFFFF;
+  --color-input-bg: rgba(128,128,128,0.06);
+
   /* Muted Speaker Tones */
   --speaker-1: #5E7A8C;
   --speaker-2: #7A8C5E;
   --speaker-3: #8C6E5E;
   --speaker-4: #6E5E8C;
+}
+
+body.dark-mode {
+  --color-bg: #0E1B2E;
+  --color-surface: #142236;
+  --color-paper: #0E1B2E;
+  --color-stone: #F6F4EE;
+  --color-slate: #7FA0C2;
+  --color-navy: #0E1B2E;
+  --color-border: #1E3350;
+  --color-hover: rgba(255, 255, 255, 0.05);
+  --color-active: rgba(255, 255, 255, 0.08);
+  --color-btn-bg: #CFE0EF;
+  --color-btn-fg: #0E1B2E;
+  --color-card-bg: #142236;
+  --color-input-bg: rgba(255,255,255,0.06);
 }
 
 * {
@@ -28,7 +54,7 @@ html, body {
   font-family: "Geist Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 13px;
   color: var(--color-stone);
-  background: var(--color-paper);
+  background: var(--color-bg);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   display: flex;
@@ -44,7 +70,7 @@ html, body {
 
 #sidebar {
   width: var(--sidebar-width);
-  background: var(--color-paper);
+  background: var(--color-bg);
   border-right: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
@@ -69,13 +95,16 @@ html, body {
   flex-shrink: 0;
   filter: brightness(0) saturate(100%) invert(8%) sepia(12%) saturate(5435%) hue-rotate(186%) brightness(95%) contrast(93%);
 }
+body.dark-mode #logo {
+  filter: brightness(0) invert(1);
+}
 
 #sidebar-header h1 {
   font-size: 20px;
-  font-weight: 700;
+  font-weight: 500;
   margin: 0;
-  letter-spacing: -0.5px;
-  color: var(--color-navy);
+  letter-spacing: -0.035em;
+  color: var(--color-stone);
 }
 
 #sidebar-search {
@@ -124,6 +153,14 @@ html, body {
   overflow-y: auto;
 }
 
+.meeting-empty {
+  color: var(--color-slate);
+  font-size: 12px;
+  padding: 10px 12px;
+  pointer-events: none;
+  user-select: none;
+}
+
 .meeting-item {
   padding: 10px 12px;
   border-radius: 12px;
@@ -134,11 +171,11 @@ html, body {
 }
 
 .meeting-item:hover {
-  background: rgba(0, 0, 0, 0.03);
+  background: var(--color-hover);
 }
 
 .meeting-item.active {
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--color-active);
   border-color: rgba(0, 0, 0, 0.02);
 }
 
@@ -162,8 +199,8 @@ html, body {
 #record-btn {
   width: 100%;
   padding: 12px;
-  background: var(--color-navy);
-  color: white;
+  background: #0E1B2E;
+  color: #F6F4EE;
   border: none;
   border-radius: 12px;
   font-weight: 700;
@@ -181,6 +218,15 @@ html, body {
   opacity: 0.9;
   transform: translateY(-1px);
 }
+body.dark-mode #record-btn {
+  background: #CFE0EF;
+  color: #0E1B2E;
+}
+body.dark-mode #on-device-card {
+  background: #142236;
+  box-shadow: none;
+  border: 1px solid var(--color-border);
+}
 
 #record-btn.recording {
   background: #ff3b30;
@@ -192,7 +238,7 @@ html, body {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: white;
+  background: var(--color-surface);
   display: inline-block;
 }
 
@@ -220,7 +266,7 @@ html, body {
 
 #on-device-card {
   flex: 1;
-  background: var(--color-navy);
+  background: #0E1B2E;
   border-radius: 12px;
   padding: 14px;
   display: flex;
@@ -244,14 +290,14 @@ html, body {
 }
 
 #settings-btn:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--color-active);
   color: var(--color-stone);
 }
 
 #settings-btn.active {
-  background: var(--color-navy);
+  background: var(--color-btn-bg);
   border-color: var(--color-navy);
-  color: white;
+  color: var(--color-btn-fg);
 }
 
 #on-device-icon {
@@ -260,7 +306,7 @@ html, body {
 }
 
 #on-device-title {
-  color: white;
+  color: var(--color-btn-fg);
   font-weight: 700;
   font-size: 12px;
   margin-bottom: 1px;
@@ -277,7 +323,7 @@ html, body {
   height: 100%;
   overflow-y: auto;
   padding: 38px 0 0;
-  background: var(--color-paper);
+  background: var(--color-bg);
 }
 
 #empty-state {
@@ -346,7 +392,7 @@ html, body {
   align-items: center;
   justify-content: space-between;
   padding: 14px 0;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .setting-row:last-child {
@@ -400,8 +446,8 @@ html, body {
   font-weight: 600;
   border: none;
   border-radius: 6px;
-  background: var(--color-navy);
-  color: white;
+  background: var(--color-btn-bg);
+  color: var(--color-btn-fg);
   cursor: pointer;
   transition: opacity 0.15s;
 }
@@ -422,7 +468,7 @@ html, body {
   padding: 7px 28px 7px 10px;
   border: 1px solid rgba(128,128,128,0.2);
   border-radius: 8px;
-  background: rgba(128,128,128,0.06);
+  background: var(--color-input-bg);
   color: var(--color-stone);
   cursor: pointer;
   width: 100%;
@@ -445,7 +491,7 @@ html, body {
   border-top: 5px solid var(--color-slate);
 }
 .custom-select-trigger:hover {
-  background: rgba(128,128,128,0.1);
+  background: var(--color-active);
 }
 .custom-select.open .custom-select-trigger {
   border-color: rgba(128,128,128,0.4);
@@ -459,7 +505,7 @@ html, body {
   min-width: 100%;
   max-height: 220px;
   overflow-y: auto;
-  background: var(--color-paper);
+  background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 4px;
@@ -484,7 +530,7 @@ html, body {
   text-overflow: ellipsis;
 }
 .custom-select-option:hover {
-  background: rgba(128,128,128,0.1);
+  background: var(--color-active);
 }
 .custom-select-option.selected {
   font-weight: 600;
@@ -505,7 +551,7 @@ html, body {
   padding: 7px 10px;
   border: 1px solid rgba(128,128,128,0.2);
   border-radius: 8px;
-  background: rgba(128,128,128,0.06);
+  background: var(--color-input-bg);
   color: var(--color-stone);
   width: 200px;
   flex-shrink: 0;
@@ -515,7 +561,7 @@ html, body {
   border-color: rgba(128,128,128,0.4);
 }
 #s-hf-token:hover {
-  background: rgba(128,128,128,0.1);
+  background: var(--color-active);
 }
 
 /* Toggle switch */
@@ -549,14 +595,14 @@ html, body {
   width: 18px;
   left: 3px;
   bottom: 3px;
-  background: white;
+  background: var(--color-surface);
   border-radius: 50%;
   transition: 0.25s;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
 .toggle input:checked + .toggle-slider {
-  background: var(--color-navy);
+  background: var(--color-btn-bg);
 }
 
 .toggle input:checked + .toggle-slider::before {
@@ -585,7 +631,7 @@ html, body {
   border-radius: 8px;
   font-size: 13px;
   font-family: inherit;
-  background: white;
+  background: var(--color-surface);
   color: var(--color-stone);
   outline: none;
   transition: border-color 0.2s;
@@ -628,7 +674,7 @@ html, body {
   flex: 1;
   font-size: 42px;
   font-weight: 800;
-  color: #111;
+  color: var(--color-stone);
   outline: none;
   padding: 4px 8px;
   margin: -4px -8px;
@@ -640,11 +686,11 @@ html, body {
 }
 
 #meeting-title:hover {
-  background: rgba(0, 0, 0, 0.02);
+  background: var(--color-hover);
 }
 
 #meeting-title:focus {
-  background: white;
+  background: var(--color-surface);
   border-color: var(--color-border);
   box-shadow: 0 4px 12px rgba(0,0,0,0.03);
 }
@@ -657,7 +703,7 @@ html, body {
 }
 
 #summary-card {
-  background: white;
+  background: var(--color-surface);
   border: 1px solid #EAE8E0;
   border-radius: 12px;
   padding: 32px;
@@ -710,8 +756,8 @@ html, body {
   font-family: inherit;
   font-size: 12px;
   font-weight: 600;
-  background: var(--color-navy);
-  color: white;
+  background: var(--color-btn-bg);
+  color: var(--color-btn-fg);
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -789,8 +835,8 @@ html, body {
 .custom-template-actions button:hover { opacity: 0.85; }
 
 .template-save-btn {
-  background: var(--color-navy);
-  color: white;
+  background: var(--color-btn-bg);
+  color: var(--color-btn-fg);
 }
 
 .template-delete-btn {
@@ -801,7 +847,7 @@ html, body {
 #summary-body {
   font-size: 16px;
   line-height: 1.7;
-  color: #3C3C40;
+  color: var(--color-stone);
 }
 
 #transcript-header {
@@ -857,7 +903,7 @@ html, body {
 }
 
 #status-bar {
-  background: var(--color-navy);
+  background: var(--color-btn-bg);
   color: var(--color-river-light);
   padding: 12px 32px;
   font-weight: 600;
@@ -896,7 +942,7 @@ html, body {
 }
 
 .speaker-name:focus {
-  background: white;
+  background: var(--color-surface);
   outline: 1px solid var(--color-border);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
@@ -927,7 +973,7 @@ html, body {
 }
 
 #modal {
-  background: var(--color-paper);
+  background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: 16px;
   padding: 32px;
@@ -963,7 +1009,7 @@ html, body {
 
 .modal-option {
   flex: 1;
-  background: white;
+  background: var(--color-surface);
   border: 1.5px solid var(--color-border);
   border-radius: 12px;
   padding: 20px 16px;
@@ -978,7 +1024,7 @@ html, body {
 
 .modal-option:hover {
   border-color: var(--color-navy);
-  background: white;
+  background: var(--color-surface);
   transform: translateY(-2px);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
@@ -1022,7 +1068,7 @@ html, body {
 }
 
 #modal-cancel:hover {
-  background: rgba(0, 0, 0, 0.03);
+  background: var(--color-hover);
   color: var(--color-stone);
 }
 
@@ -1057,8 +1103,8 @@ html, body {
   height: 30px;
   border-radius: 8px;
   border: none;
-  background: rgba(128,128,128,0.08);
-  color: var(--text-secondary);
+  background: var(--color-hover);
+  color: var(--color-slate);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1066,15 +1112,15 @@ html, body {
   transition: background 0.15s, color 0.15s;
 }
 .icon-btn:hover {
-  background: rgba(128,128,128,0.16);
-  color: var(--text-primary);
+  background: var(--color-active);
+  color: var(--color-stone);
 }
 
 #delete-dropdown {
   position: absolute;
   top: 36px;
   right: 0;
-  background: var(--color-paper);
+  background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 4px;
@@ -1104,7 +1150,7 @@ html, body {
   transition: background 0.1s;
 }
 .dropdown-item:hover {
-  background: rgba(128,128,128,0.1);
+  background: var(--color-active);
 }
 
 .dropdown-item-danger {

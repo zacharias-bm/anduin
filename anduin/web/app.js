@@ -122,7 +122,7 @@ async function loadMeetings(query, autoSelect = false) {
 function renderSidebar(meetings) {
   const list = document.getElementById("meeting-list");
   if (!meetings.length) {
-    list.innerHTML = '<div class="meeting-item" style="color:var(--color-slate);cursor:default;font-size:12px;padding-left:12px">No meetings yet</div>';
+    list.innerHTML = '<div class="meeting-empty">No meetings yet</div>';
     return;
   }
   list.innerHTML = meetings
@@ -408,6 +408,9 @@ function hideSettings() {
 }
 
 async function loadSettingsPanel() {
+  // Theme
+  document.getElementById("s-dark-mode").checked = localStorage.getItem("theme") === "dark";
+
   const settings = await fetchJSON("/api/settings");
   document.getElementById("s-auto-summarize").checked = settings.auto_summarize;
   document.getElementById("s-keep-audio").checked = settings.keep_audio;
@@ -469,6 +472,12 @@ async function saveSetting(key, value) {
     body: JSON.stringify({ [key]: value }),
   });
 }
+
+document.getElementById("s-dark-mode").addEventListener("change", e => {
+  const dark = e.target.checked;
+  document.body.classList.toggle("dark-mode", dark);
+  localStorage.setItem("theme", dark ? "dark" : "light");
+});
 
 document.getElementById("s-auto-summarize").addEventListener("change", e => saveSetting("auto_summarize", e.target.checked));
 document.getElementById("s-keep-audio").addEventListener("change", e => saveSetting("keep_audio", e.target.checked));
@@ -748,18 +757,10 @@ function connectSSE() {
   };
 }
 
-// Theme Toggle
+// Theme
 function initTheme() {
-  const savedTheme = localStorage.getItem("theme") || "dark";
-  document.body.classList.toggle("light-mode", savedTheme === "light");
-}
-
-const themeToggle = document.getElementById("theme-toggle");
-if (themeToggle) {
-  themeToggle.addEventListener("click", () => {
-    const isLight = document.body.classList.toggle("light-mode");
-    localStorage.setItem("theme", isLight ? "light" : "dark");
-  });
+  const dark = localStorage.getItem("theme") === "dark";
+  document.body.classList.toggle("dark-mode", dark);
 }
 
 // Init
