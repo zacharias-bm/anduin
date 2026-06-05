@@ -529,7 +529,7 @@ function connectSSE() {
     } else {
       recordingStartTime = null;
       if (recordingTimer) { clearInterval(recordingTimer); recordingTimer = null; }
-      if (statusBar) statusBar.style.display = "none";
+      // Don't hide status bar — pipeline events will take over
     }
   });
 

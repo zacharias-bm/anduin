@@ -188,7 +188,8 @@ class AnduinApp(rumps.App):
         self.menu["Record Meeting…"].set_callback(self._record)
         self.menu["Stop Recording"].set_callback(None)
         self._event_bus.publish("recording", {"active": False})
-        self._server._app_status = {"recording": False, "pipeline_stage": None}
+        self._event_bus.publish("pipeline", {"stage": "saving", "message": "Saving recording..."})
+        self._server._app_status = {"recording": False, "pipeline_stage": "saving"}
 
         def _finish():
             tmp_path = self._recorder.stop(self._tmp_audio)
