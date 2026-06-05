@@ -6,6 +6,15 @@ import threading
 from anduin.hardware.detect import detect as detect_hardware
 from anduin.setup import models, ollama
 
+# Lazy-loaded by run_wizard() — declared here so the class definition
+# doesn't fail at import time in frozen builds where tkinter may not exist.
+try:
+    import tkinter as tk
+    from tkinter import ttk
+except ImportError:
+    tk = None  # type: ignore
+    ttk = None  # type: ignore
+
 STEPS = ["Hardware", "Whisper", "Ollama", "Permissions", "Done"]
 
 BG = "white"
