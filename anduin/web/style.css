@@ -20,6 +20,9 @@
   --color-btn-fg: #FFFFFF;
   --color-card-bg: #FFFFFF;
   --color-input-bg: rgba(128,128,128,0.06);
+  --color-toggle-off: #ccc;
+  --color-toggle-on: #0E1B2E;
+  --color-toggle-knob: #FFFFFF;
 
   /* Muted Speaker Tones */
   --speaker-1: #5E7A8C;
@@ -43,6 +46,9 @@ body.dark-mode {
   --color-btn-fg: #D1D1D6;
   --color-card-bg: #2C2C2E;
   --color-input-bg: rgba(255,255,255,0.07);
+  --color-toggle-off: #48484A;
+  --color-toggle-on: #636366;
+  --color-toggle-knob: #D1D1D6;
 }
 
 * {
@@ -591,7 +597,7 @@ body.dark-mode #on-device-subtitle {
   position: absolute;
   cursor: pointer;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: #ccc;
+  background: var(--color-toggle-off, #ccc);
   border-radius: 24px;
   transition: 0.25s;
 }
@@ -603,14 +609,14 @@ body.dark-mode #on-device-subtitle {
   width: 18px;
   left: 3px;
   bottom: 3px;
-  background: var(--color-surface);
+  background: var(--color-toggle-knob, #FFFFFF);
   border-radius: 50%;
   transition: 0.25s;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
 .toggle input:checked + .toggle-slider {
-  background: var(--color-btn-bg);
+  background: var(--color-toggle-on, #0E1B2E);
 }
 
 .toggle input:checked + .toggle-slider::before {
