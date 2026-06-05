@@ -11,12 +11,18 @@ automatically by macOS when SCShareableContent is first accessed.
 import threading
 from pathlib import Path
 
+import warnings
+
 import numpy as np
 import objc
 import soundfile as sf
 
 import AppKit
+import CoreMedia
 import ScreenCaptureKit as SC
+
+# Suppress PyObjC pointer warnings for CMSampleBuffer
+warnings.filterwarnings("ignore", message=".*ObjCPointer.*")
 
 SAMPLE_RATE = 16000
 CHANNELS = 1
@@ -241,14 +247,18 @@ class SystemAudioRecorder:
     def _handle_audio_buffer(self, sample_buffer, is_mic: bool):
         """Called by the delegate when audio data arrives."""
         try:
-            import CoreMedia
+            # PyObjC may pass this as an ObjCPointer — extract the raw pointer
+            if hasattr(sample_buffer, '__pointer__'):
+                buf_ptr = sample_buffer.__pointer__
+            else:
+                buf_ptr = sample_buffer
 
             # Get presentation timestamp for ordering
-            pts = CoreMedia.CMSampleBufferGetPresentationTimeStamp(sample_buffer)
+            pts = CoreMedia.CMSampleBufferGetPresentationTimeStamp(buf_ptr)
             timestamp = pts.value / pts.timescale if pts.timescale > 0 else 0.0
 
             # Get the raw data block
-            block_buffer = CoreMedia.CMSampleBufferGetDataBuffer(sample_buffer)
+            block_buffer = CoreMedia.CMSampleBufferGetDataBuffer(buf_ptr)
             if block_buffer is None:
                 return
 
@@ -309,6 +319,7 @@ class _AudioOutputDelegate(AppKit.NSObject, protocols=[_SCStreamOutput]):
         self._recorder = recorder
         return self
 
+    @objc.typedSelector(b"v@:@^{opaqueCMSampleBuffer=}q")
     def stream_didOutputSampleBuffer_ofType_(self, stream, sample_buffer, output_type):
         """Called by ScreenCaptureKit when audio data is available."""
         if output_type == SC.SCStreamOutputTypeAudio:
