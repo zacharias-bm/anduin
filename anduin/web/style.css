@@ -78,6 +78,29 @@ html, body {
   color: var(--color-navy);
 }
 
+#sidebar-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 8px;
+  color: var(--color-slate);
+}
+
+#sidebar-search input {
+  flex: 1;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 6px 0;
+  border: none;
+  background: none;
+  color: var(--color-stone);
+  outline: none;
+}
+#sidebar-search input::placeholder {
+  color: var(--color-slate);
+  opacity: 0.6;
+}
+
 #sidebar-content {
   flex: 1;
   overflow-y: auto;
