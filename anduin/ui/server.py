@@ -95,7 +95,11 @@ class _Handler(BaseHTTPRequestHandler):
             templates = ensure_default_templates(store.get_config("custom_templates", []))
             # Save back if defaults were seeded
             store.set_config("custom_templates", templates)
-            self._json({"templates": templates, "default_template": store.get_config("default_template")})
+            default_tid = store.get_config("default_template")
+            template_ids = {t["id"] for t in templates}
+            if not default_tid or default_tid not in template_ids:
+                default_tid = templates[0]["id"] if templates else None
+            self._json({"templates": templates, "default_template": default_tid})
 
         elif path == "/api/templates/defaults":
             from anduin.summarization.engine import get_default_templates
