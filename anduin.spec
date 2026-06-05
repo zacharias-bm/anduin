@@ -70,6 +70,8 @@ a = Analysis(
     runtime_hooks=[],
     excludes=[
         # Reduce bundle size — exclude unused heavy modules
+        "tkinter",
+        "_tkinter",
         "matplotlib",
         "IPython",
         "notebook",

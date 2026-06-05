@@ -323,14 +323,7 @@ def main():
     if not is_setup_complete():
         run_wizard()
 
-    # The setup wizard uses tkinter, which leaves Tcl async handlers in memory.
-    # If those survive into threaded pipeline work (pyannote/whisper), Tcl aborts
-    # with "Tcl_AsyncDelete: async handler deleted by the wrong thread".
-    # Purge all tkinter/Tcl state now — before rumps starts and threads are spawned.
-    import sys
-    for mod in list(sys.modules):
-        if mod.startswith(("tkinter", "_tkinter")):
-            del sys.modules[mod]
+
 
     AnduinApp().run()
 

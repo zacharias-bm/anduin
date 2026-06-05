@@ -1,312 +1,227 @@
 from __future__ import annotations
-"""First-launch setup wizard. Runs as a blocking tkinter window before the menu bar app starts."""
-import subprocess
+"""First-launch setup wizard.
+
+Serves wizard.html via a temporary HTTP server and displays it in
+a native WKWebView window. All download/permission logic runs on
+the server side with progress polling from the JS frontend.
+"""
+import json
 import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 from anduin.hardware.detect import detect as detect_hardware
 from anduin.setup import models, ollama
 
-try:
-    import tkinter as tk
-    from tkinter import ttk
-except ImportError:
-    tk = None  # type: ignore
-    ttk = None  # type: ignore
-
-STEPS = ["Setup", "Whisper", "Ollama", "Permissions", "Ready"]
-
-# ── Colors matching Anduin's palette ─────────────────────────────────────────
-BG = "#F6F4EE"       # color-paper
-NAVY = "#0E1B2E"     # color-navy
-STONE = "#1B1B1F"    # color-stone
-SLATE = "#4A4E55"    # color-slate
-BORDER = "#E5E2D9"   # color-border
-WHITE = "#FFFFFF"
-ACCENT_GREEN = "#34c759"
+WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
 
-class WizardApp(tk.Tk):
-    def __init__(self):
-        super().__init__()
-        self.title("Anduin")
-        self.resizable(False, False)
-        self.configure(bg=BG)
-        _center(self, 520, 440)
+# ── Shared progress state ────────────────────────────────────────────────────
 
-        self._hw = detect_hardware()
-        self._step = 0
+_whisper_progress = {"downloaded": 0, "total": 0, "filename": "", "done": False, "error": ""}
+_ollama_progress = {"done": 0, "total": 0, "complete": False, "error": ""}
+_wizard_done = threading.Event()
 
-        self._build_chrome()
-        self._show_step(0)
 
-    def _build_chrome(self):
-        # Progress dots at top
-        self._dot_frame = tk.Frame(self, bg=BG, pady=16)
-        self._dot_frame.pack(fill="x")
-        self._dots = []
-        dot_container = tk.Frame(self._dot_frame, bg=BG)
-        dot_container.pack()
-        for i in range(len(STEPS)):
-            c = tk.Canvas(dot_container, width=10, height=10, bg=BG,
-                          highlightthickness=0)
-            c.pack(side="left", padx=4)
-            self._dots.append(c)
+# ── Wizard HTTP handler ─────────────────────────────────────────────────────
 
-        # Body
-        self._body = tk.Frame(self, bg=BG, padx=48, pady=0)
-        self._body.pack(fill="both", expand=True)
+class _WizardHandler(BaseHTTPRequestHandler):
+    hw = None
 
-        # Footer with single button
-        footer = tk.Frame(self, bg=BG, pady=20)
-        footer.pack(fill="x")
-        self._next_btn = tk.Button(
-            footer, text="Continue", font=("SF Pro Text", 13, "bold"),
-            bg=NAVY, fg=WHITE, activebackground=STONE, activeforeground=WHITE,
-            relief="flat", padx=32, pady=10, cursor="hand2",
-            command=self._go_next,
-        )
-        self._next_btn.pack()
+    def log_message(self, *args):
+        pass
 
-    def _update_dots(self, index):
-        for i, c in enumerate(self._dots):
-            c.delete("all")
-            if i < index:
-                c.create_oval(1, 1, 9, 9, fill=NAVY, outline="")
-            elif i == index:
-                c.create_oval(0, 0, 10, 10, fill=NAVY, outline="")
-            else:
-                c.create_oval(1, 1, 9, 9, fill=BORDER, outline="")
+    def _json(self, obj, status=200):
+        body = json.dumps(obj).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
-    def _show_step(self, index):
-        for w in self._body.winfo_children():
-            w.destroy()
+    def _read_body(self) -> bytes:
+        length = int(self.headers.get("Content-Length", 0))
+        return self.rfile.read(length)
 
-        self._update_dots(index)
-        self._next_btn.config(text="Continue", command=self._go_next, state="normal")
+    def do_GET(self):
+        path = self.path.split("?")[0].rstrip("/")
 
-        [self._step_hardware, self._step_whisper,
-         self._step_ollama, self._step_screen_recording, self._step_done][index]()
+        if path in ("", "/", "/wizard.html"):
+            self._serve_file("wizard.html")
 
-    def _go_next(self):
-        if self._step < len(STEPS) - 1:
-            self._step += 1
-            self._show_step(self._step)
+        elif path == "/api/wizard/hardware":
+            self._json(self.hw)
+
+        elif path == "/api/wizard/whisper/status":
+            model = self.hw["whisper_model"]
+            self._json({"downloaded": models.whisper_is_downloaded(model)})
+
+        elif path == "/api/wizard/whisper/progress":
+            self._json(_whisper_progress)
+
+        elif path == "/api/wizard/ollama/status":
+            model = self.hw["llm_model"]
+            self._json({
+                "installed": ollama.is_installed(),
+                "model_pulled": ollama.model_is_pulled(model) if ollama.is_installed() else False,
+            })
+
+        elif path == "/api/wizard/ollama/progress":
+            self._json(_ollama_progress)
+
         else:
-            self.destroy()
+            self._serve_file(path.lstrip("/"))
 
-    # ── Steps ─────────────────────────────────────────────────────────────────
+    def do_POST(self):
+        path = self.path.split("?")[0].rstrip("/")
 
-    def _step_hardware(self):
-        hw = self._hw
-        _title(self._body, "Welcome to Anduin")
-        _spacer(self._body, 8)
-        _subtitle(self._body, "We detected your hardware and selected\nthe best models for your machine.")
-        _spacer(self._body, 24)
+        if path == "/api/wizard/whisper/download":
+            self._json({"ok": True})
+            threading.Thread(target=self._download_whisper, daemon=True).start()
 
-        info = tk.Frame(self._body, bg=WHITE, highlightbackground=BORDER,
-                        highlightthickness=1, padx=20, pady=16)
-        info.pack(fill="x")
-        _info_row(info, "Chip", f"Apple {hw['chip']}")
-        _info_row(info, "RAM", f"{hw['ram_gb']} GB")
-        _info_row(info, "Transcription", f"Whisper {hw['whisper_model']}")
-        _info_row(info, "Summarization", hw['llm_model'])
+        elif path == "/api/wizard/ollama/pull":
+            self._json({"ok": True})
+            threading.Thread(target=self._pull_ollama, daemon=True).start()
 
-    def _step_whisper(self):
-        model = self._hw["whisper_model"]
-        size = models.WHISPER_SIZES.get(model, "~3 GB")
-        _title(self._body, "Downloading Whisper")
-        _spacer(self._body, 4)
-        _subtitle(self._body, f"Whisper {model} ({size})")
-        _spacer(self._body, 24)
+        elif path == "/api/wizard/permission":
+            granted = self._request_permission()
+            self._json({"granted": granted})
 
-        prog = ttk.Progressbar(self._body, mode="determinate", length=400, maximum=100)
-        prog.pack(fill="x", pady=(0, 8))
-        status_var = tk.StringVar(value="")
-        tk.Label(self._body, textvariable=status_var, bg=BG, fg=SLATE,
-                 font=("SF Pro Text", 11)).pack(anchor="w")
+        elif path == "/api/wizard/done":
+            self._json({"ok": True})
+            _wizard_done.set()
 
-        if models.whisper_is_downloaded(model):
-            prog.config(value=100)
-            status_var.set("Already downloaded.")
+        else:
+            self._json({"error": "not found"}, 404)
+
+    def _serve_file(self, filename: str):
+        file_path = WEB_DIR / filename
+        if not file_path.is_file():
+            self.send_error(404)
             return
+        ct_map = {
+            ".html": "text/html", ".css": "text/css",
+            ".js": "application/javascript", ".svg": "image/svg+xml",
+        }
+        ct = ct_map.get(file_path.suffix, "application/octet-stream")
+        body = file_path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", ct)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
-        self._next_btn.config(state="disabled", text="Downloading…")
+    def _download_whisper(self):
+        global _whisper_progress
+        _whisper_progress = {"downloaded": 0, "total": 0, "filename": "", "done": False, "error": ""}
+        model = self.hw["whisper_model"]
+        try:
+            def _progress(downloaded, total, filename):
+                _whisper_progress["downloaded"] = downloaded
+                _whisper_progress["total"] = total
+                _whisper_progress["filename"] = filename
 
-        def _progress(current_bytes: int, total_bytes: int, filename: str):
-            if total_bytes > 0:
-                pct = int(current_bytes / total_bytes * 100)
-                mb_done = current_bytes / 1_000_000
-                mb_total = total_bytes / 1_000_000
-                self.after(0, lambda: [
-                    prog.config(value=pct),
-                    status_var.set(f"{mb_done:.0f} / {mb_total:.0f} MB — {filename}"),
-                ])
-            else:
-                self.after(0, lambda: status_var.set(f"Downloading {filename}…"))
+            models.download_whisper_with_progress(model, progress=_progress)
+            _whisper_progress["done"] = True
+        except Exception as e:
+            _whisper_progress["error"] = str(e)
 
-        def _run():
-            try:
-                models.download_whisper_with_progress(model, progress=_progress)
-                self.after(0, lambda: [
-                    prog.config(value=100),
-                    status_var.set("Complete"),
-                    self._next_btn.config(state="normal", text="Continue"),
-                ])
-            except Exception as e:
-                err = str(e)
-                self.after(0, lambda: [
-                    status_var.set(f"Error: {err}"),
-                    self._next_btn.config(state="normal", text="Retry",
-                                          command=lambda: self._show_step(self._step)),
-                ])
+    def _pull_ollama(self):
+        global _ollama_progress
+        _ollama_progress = {"done": 0, "total": 0, "complete": False, "error": ""}
+        model = self.hw["llm_model"]
+        try:
+            ollama.ensure_running()
 
-        threading.Thread(target=_run, daemon=True).start()
+            def _prog(done_bytes, total_bytes):
+                _ollama_progress["done"] = done_bytes
+                _ollama_progress["total"] = total_bytes
 
-    def _step_ollama(self):
-        model = self._hw["llm_model"]
-        _title(self._body, "Downloading LLM")
-        _spacer(self._body, 4)
-        _subtitle(self._body, model)
-        _spacer(self._body, 24)
+            ollama.pull_model(model, progress=_prog)
+            _ollama_progress["complete"] = True
+        except Exception as e:
+            _ollama_progress["error"] = str(e)
 
-        if not ollama.is_installed():
-            _subtitle(self._body, "Ollama is not installed.")
-            _spacer(self._body, 12)
-            btn = tk.Button(
-                self._body, text="Download Ollama", font=("SF Pro Text", 12),
-                bg=NAVY, fg=WHITE, activebackground=STONE, activeforeground=WHITE,
-                relief="flat", padx=20, pady=8, cursor="hand2",
-                command=lambda: _open("https://ollama.com/download/mac"),
-            )
-            btn.pack()
-            _spacer(self._body, 8)
-            retry = tk.Button(
-                self._body, text="I've installed it", font=("SF Pro Text", 11),
-                bg=BG, fg=SLATE, activebackground=BG, activeforeground=STONE,
-                relief="flat", cursor="hand2",
-                command=lambda: self._show_step(self._step),
-            )
-            retry.pack()
-            self._next_btn.config(state="disabled")
-            return
-
-        prog = ttk.Progressbar(self._body, mode="determinate", length=400, maximum=100)
-        prog.pack(fill="x", pady=(0, 8))
-        status_var = tk.StringVar(value="")
-        tk.Label(self._body, textvariable=status_var, bg=BG, fg=SLATE,
-                 font=("SF Pro Text", 11)).pack(anchor="w")
-
-        if ollama.model_is_pulled(model):
-            prog.config(value=100)
-            status_var.set("Already downloaded.")
-            return
-
-        self._next_btn.config(state="disabled", text="Downloading…")
-
-        def _run():
-            try:
-                ollama.ensure_running()
-
-                def _prog(done, total):
-                    pct = int(done / total * 100) if total else 0
-                    mb_done = done // 1_000_000
-                    mb_total = total // 1_000_000
-                    self.after(0, lambda: [
-                        prog.config(value=pct),
-                        status_var.set(f"{mb_done} / {mb_total} MB"),
-                    ])
-
-                ollama.pull_model(model, progress=_prog)
-                self.after(0, lambda: [
-                    prog.config(value=100),
-                    status_var.set("Complete"),
-                    self._next_btn.config(state="normal", text="Continue"),
-                ])
-            except Exception as e:
-                err = str(e)
-                self.after(0, lambda: [
-                    status_var.set(f"Error: {err}"),
-                    self._next_btn.config(state="normal", text="Retry",
-                                          command=lambda: self._show_step(self._step)),
-                ])
-
-        threading.Thread(target=_run, daemon=True).start()
-
-    def _step_screen_recording(self):
-        _title(self._body, "Screen Recording")
-        _spacer(self._body, 4)
-        _subtitle(self._body, "Required for recording digital meetings.\nOnly audio is captured — no screen content.")
-        _spacer(self._body, 24)
-
-        status_var = tk.StringVar(value="Checking…")
-        tk.Label(self._body, textvariable=status_var, bg=BG, fg=SLATE,
-                 font=("SF Pro Text", 11)).pack(anchor="center")
-        _spacer(self._body, 12)
-
-        grant_btn = tk.Button(
-            self._body, text="Grant Permission", font=("SF Pro Text", 12, "bold"),
-            bg=NAVY, fg=WHITE, activebackground=STONE, activeforeground=WHITE,
-            relief="flat", padx=24, pady=8, cursor="hand2",
-        )
-
-        def _check():
-            try:
-                from anduin.capture.system_audio import has_permission
-                if has_permission():
-                    status_var.set("Permission granted.")
-                    grant_btn.pack_forget()
-                    # Auto-advance after a short delay
-                    self.after(800, self._go_next)
-                else:
-                    status_var.set("Not yet granted.")
-                    grant_btn.pack()
-            except Exception:
-                status_var.set("Skipped — grant later in System Settings.")
-
-        def _request():
-            status_var.set("A system dialog should appear…")
-            grant_btn.config(state="disabled")
-            def _run():
-                try:
-                    from anduin.capture.system_audio import request_permission
-                    granted = request_permission()
-                    self.after(0, lambda: [
-                        status_var.set("Permission granted." if granted else "Denied — you can grant it later in System Settings."),
-                        grant_btn.config(state="normal"),
-                    ])
-                    if granted:
-                        self.after(800, self._go_next)
-                except Exception:
-                    self.after(0, lambda: status_var.set("Skipped."))
-            threading.Thread(target=_run, daemon=True).start()
-
-        grant_btn.config(command=_request)
-        _check()
-
-    def _step_done(self):
-        _spacer(self._body, 40)
-        _title(self._body, "Ready to go")
-        _spacer(self._body, 8)
-        _subtitle(self._body, "Anduin will appear in your menu bar.")
-        _spacer(self._body, 40)
-
-        self._next_btn.config(
-            text="Launch Anduin",
-            font=("SF Pro Text", 14, "bold"),
-            padx=40, pady=12,
-        )
+    def _request_permission(self):
+        try:
+            from anduin.capture.system_audio import request_permission
+            return request_permission()
+        except Exception:
+            return False
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def run_wizard():
-    import tkinter
-    import tkinter.ttk
-    global tk, ttk
-    tk = tkinter
-    ttk = tkinter.ttk
-    app = WizardApp()
-    app.mainloop()
+    """Show the setup wizard in a native window. Blocks until done."""
+    hw = detect_hardware()
+    _WizardHandler.hw = hw
+
+    # Start temporary server
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _WizardHandler)
+    port = server.server_address[1]
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+
+    # Open native window with WKWebView
+    import AppKit
+    import WebKit
+
+    app = AppKit.NSApplication.sharedApplication()
+    app.setActivationPolicy_(AppKit.NSApplicationActivationPolicyRegular)
+
+    frame = AppKit.NSMakeRect(0, 0, 480, 420)
+    style = (
+        AppKit.NSTitledWindowMask
+        | AppKit.NSClosableWindowMask
+    )
+    window = AppKit.NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
+        frame, style, AppKit.NSBackingStoreBuffered, False
+    )
+    window.setTitle_("Anduin Setup")
+    window.setReleasedWhenClosed_(False)
+    window.setTitlebarAppearsTransparent_(True)
+    window.setTitleVisibility_(1)  # hidden
+    window.center()
+
+    # Set background color to match wizard
+    bg_color = AppKit.NSColor.colorWithRed_green_blue_alpha_(
+        0.965, 0.957, 0.933, 1.0  # #F6F4EE
+    )
+    window.setBackgroundColor_(bg_color)
+
+    config = WebKit.WKWebViewConfiguration.alloc().init()
+    webview = WebKit.WKWebView.alloc().initWithFrame_configuration_(
+        window.contentView().bounds(), config
+    )
+    webview.setAutoresizingMask_(
+        AppKit.NSViewWidthSizable | AppKit.NSViewHeightSizable
+    )
+    # Make webview background transparent to show window bg
+    webview.setValue_forKey_(False, "drawsBackground")
+    window.contentView().addSubview_(webview)
+
+    url = AppKit.NSURL.URLWithString_(f"http://127.0.0.1:{port}/wizard.html")
+    webview.loadRequest_(AppKit.NSURLRequest.requestWithURL_(url))
+
+    window.makeKeyAndOrderFront_(None)
+    app.activateIgnoringOtherApps_(True)
+
+    # Run the event loop until the wizard signals done or window closes
+    while not _wizard_done.is_set():
+        event = app.nextEventMatchingMask_untilDate_inMode_dequeue_(
+            AppKit.NSEventMaskAny,
+            AppKit.NSDate.dateWithTimeIntervalSinceNow_(0.1),
+            AppKit.NSDefaultRunLoopMode,
+            True,
+        )
+        if event:
+            app.sendEvent_(event)
+        if not window.isVisible():
+            break
+
+    window.orderOut_(None)
+    server.shutdown()
 
 
 def is_setup_complete() -> bool:
@@ -333,37 +248,3 @@ def _ollama_model_exists(model: str) -> bool:
     if manifest.exists():
         return True
     return ollama.model_is_pulled(model)
-
-
-# ── UI Helpers ────────────────────────────────────────────────────────────────
-
-def _title(parent, text: str):
-    tk.Label(parent, text=text, font=("SF Pro Display", 22, "bold"),
-             bg=BG, fg=STONE, anchor="center").pack(fill="x")
-
-
-def _subtitle(parent, text: str):
-    tk.Label(parent, text=text, font=("SF Pro Text", 13),
-             bg=BG, fg=SLATE, anchor="center", justify="center",
-             wraplength=400).pack(fill="x")
-
-
-def _info_row(parent, label: str, value: str):
-    row = tk.Frame(parent, bg=WHITE)
-    row.pack(fill="x", pady=3)
-    tk.Label(row, text=label, font=("SF Pro Text", 12),
-             bg=WHITE, fg=SLATE, width=14, anchor="w").pack(side="left")
-    tk.Label(row, text=value, font=("SF Pro Text", 12, "bold"),
-             bg=WHITE, fg=STONE, anchor="w").pack(side="left")
-
-
-def _spacer(parent, height: int = 8):
-    tk.Frame(parent, bg=BG, height=height).pack()
-
-
-def _center(win, w: int, h: int):
-    win.geometry(f"{w}x{h}+{(win.winfo_screenwidth()-w)//2}+{(win.winfo_screenheight()-h)//2}")
-
-
-def _open(target: str):
-    subprocess.run(["open", target])
