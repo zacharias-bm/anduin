@@ -230,6 +230,10 @@ body.dark-mode #record-btn {
   background: #3A3A3C;
   color: #D1D1D6;
 }
+body.dark-mode #record-btn.recording {
+  background: #ff3b30;
+  color: #FFFFFF;
+}
 body.dark-mode #on-device-card {
   background: #2C2C2E;
   box-shadow: none;
@@ -917,8 +921,9 @@ body.dark-mode #on-device-subtitle {
 }
 
 #status-bar {
-  background: var(--color-btn-bg);
-  color: var(--color-river-light);
+  background: var(--color-surface);
+  color: var(--color-stone);
+  border-top: 1px solid var(--color-border);
   padding: 12px 32px;
   font-weight: 600;
   display: flex;
@@ -936,7 +941,7 @@ body.dark-mode #on-device-subtitle {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--color-river-mid);
+  background: var(--color-slate);
   animation: pulse 1.5s ease-in-out infinite;
   flex-shrink: 0;
 }
