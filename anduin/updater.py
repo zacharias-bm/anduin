@@ -50,6 +50,19 @@ def current_version() -> str:
     return __version__
 
 
+def cleanup_old_backup():
+    """Remove leftover .app.bak from a previous update."""
+    try:
+        app = _find_app_bundle()
+        if app.suffix == ".app":
+            backup = app.with_suffix(".app.bak")
+            if backup.exists():
+                shutil.rmtree(backup)
+                print("[updater] cleaned up old backup", flush=True)
+    except Exception:
+        pass
+
+
 def check_for_update() -> dict | None:
     """Check if a newer version is available.
 
@@ -279,13 +292,13 @@ def _stage_macos(extract_dir: Path):
     new_app = apps[0]
 
     if current_app.suffix == ".app":
-        # Replace the bundle
         backup = current_app.with_suffix(".app.bak")
         if backup.exists():
             shutil.rmtree(backup)
         current_app.rename(backup)
         shutil.copytree(new_app, current_app, symlinks=True)
-        shutil.rmtree(backup, ignore_errors=True)
+        # Don't delete backup here — old process still holds files open.
+        # cleanup_old_backup() handles it on next launch.
         print(f"[updater] replaced {current_app}", flush=True)
     else:
         # Dev mode — just log

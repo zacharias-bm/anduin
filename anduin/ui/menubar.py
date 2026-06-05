@@ -254,7 +254,8 @@ class AnduinApp(rumps.App):
             import time
             time.sleep(5)
             try:
-                from anduin.updater import check_for_update
+                from anduin.updater import check_for_update, cleanup_old_backup
+                cleanup_old_backup()
                 update = check_for_update()
                 if update:
                     self._apply_update(update)
