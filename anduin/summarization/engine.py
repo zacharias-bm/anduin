@@ -104,33 +104,6 @@ def get_templates(custom_templates: list[dict] | None = None) -> list[dict]:
     return templates
 
 
-def generate_title(segments: list[dict], model: str) -> str:
-    """Generate a very short meeting title from transcript content."""
-    transcript = _format_transcript(segments)
-    if not transcript.strip():
-        return ""
-
-    prompt = (
-        "Generate a very short title (max 6 words) for this meeting. "
-        "Just the title, nothing else. No quotes. Examples: "
-        '"Q3 Budget Review", "Backing Minds <> Norrsken", '
-        '"Weekly Engineering Standup", "Product Launch Planning".\n\n'
-        f"Transcript:\n{transcript}"
-    )
-
-    try:
-        title = _call_ollama(model, prompt, None).strip().strip('"\'')
-        # Truncate if the model got chatty
-        if "\n" in title:
-            title = title.split("\n")[0].strip()
-        if len(title) > 60:
-            title = title[:57] + "..."
-        return title
-    except Exception as e:
-        print(f"[engine] title generation failed: {e}", flush=True)
-        return ""
-
-
 def _format_transcript(segments: list[dict]) -> str:
     return "\n".join(f"[{s['speaker']}]: {s['text']}" for s in segments)
 

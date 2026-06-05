@@ -1,13 +1,11 @@
 from __future__ import annotations
 """Main entry point. Run with: python -m anduin.ui.menubar"""
-import json
 import queue
 import subprocess
 import threading
 from datetime import datetime
 from pathlib import Path
 
-import AppKit
 import rumps
 
 from anduin.capture.devices import device_for_mode
@@ -19,7 +17,6 @@ from anduin.setup.wizard import is_setup_complete, run_wizard
 from anduin.storage import store
 from anduin.ui.server import EventBus, start_server
 from anduin.ui.webview import AnduinWindow
-from anduin.ui.windows import _notify, prompt_speaker_names
 
 
 
@@ -270,41 +267,6 @@ class AnduinApp(rumps.App):
         except Exception as e:
             print(f"[ollama] shutdown warning: {e}", flush=True)
 
-
-# ── osascript dialog helpers ──────────────────────────────────────────────────
-
-def _ask_text(prompt: str, default: str = "") -> str | None:
-    """Show a text-input dialog via osascript. Returns text or None if cancelled."""
-    safe_prompt = prompt.replace('"', '\\"')
-    safe_default = default.replace('"', '\\"')
-    script = (
-        f'display dialog "{safe_prompt}" default answer "{safe_default}" '
-        f'buttons {{"Cancel", "OK"}} default button "OK"'
-    )
-    result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
-    if result.returncode != 0:
-        return None
-    for part in result.stdout.strip().split(", "):
-        if part.startswith("text returned:"):
-            text = part[len("text returned:"):].strip()
-            return text or default
-    return default
-
-
-def _ask_choice(prompt: str, buttons: list[str], default: str) -> str | None:
-    """Show a button-choice dialog via osascript. Returns button label or None if cancelled."""
-    safe_prompt = prompt.replace('"', '\\"')
-    btn_list = "{" + ", ".join(f'"{b}"' for b in buttons) + "}"
-    script = (
-        f'display dialog "{safe_prompt}" buttons {btn_list} default button "{default}"'
-    )
-    result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
-    if result.returncode != 0:
-        return None
-    out = result.stdout.strip()
-    if out.startswith("button returned:"):
-        return out[len("button returned:"):].strip()
-    return None
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
