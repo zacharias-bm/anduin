@@ -105,36 +105,35 @@ class AnduinApp(rumps.App):
     def _quit(self, _):
         import os
 
-        if self._recorder.is_recording:
+        # Hide the window immediately so it feels instant
+        if hasattr(self, "_window"):
+            self._window.close()
+
+        # Fire all cleanup in daemon threads so we don't block
+        def _cleanup():
             try:
-                self._recorder.stop(self._tmp_audio)
+                if self._recorder.is_recording:
+                    self._recorder.stop(self._tmp_audio)
+            except Exception:
+                pass
+            try:
+                from anduin.transcription.whisper import unload as unload_whisper
+                unload_whisper()
+            except Exception:
+                pass
+            try:
+                self._stop_ollama()
+            except Exception:
+                pass
+            try:
+                if hasattr(self, "_server"):
+                    self._server.shutdown()
             except Exception:
                 pass
 
-        # Unload models to free resources
-        try:
-            from anduin.transcription.whisper import unload as unload_whisper
-            unload_whisper()
-        except Exception:
-            pass
-        try:
-            from anduin.diarization.diarizer import unload as unload_diarizer
-            unload_diarizer()
-        except Exception:
-            pass
+        threading.Thread(target=_cleanup, daemon=True).start()
 
-        # Shutdown HTTP server — short timeout
-        if hasattr(self, "_server"):
-            t = threading.Thread(target=lambda: self._server.shutdown(), daemon=True)
-            t.start()
-            t.join(timeout=0.5)
-
-        # Fire off Ollama shutdown (non-blocking)
-        threading.Thread(target=self._stop_ollama, daemon=True).start()
-
-        # Hard exit to avoid Tcl/AppKit cleanup crash.
-        # All our cleanup is done above; os._exit skips Python's
-        # finalization which triggers the "Tcl_FindHashEntry" abort.
+        # Exit immediately — cleanup runs in background
         rumps.quit_application()
         os._exit(0)
 

@@ -87,10 +87,13 @@
           </div>
 
           <div class="settings-section">
-            <h3>Custom Summary Templates</h3>
-            <p class="setting-desc" style="margin-bottom:12px">Create your own summary styles. Use <code>{transcript}</code> where the transcript should be inserted.</p>
+            <h3>Summary Templates</h3>
+            <p class="setting-desc" style="margin-bottom:12px">Edit, add, or remove summary styles. Use <code>{transcript}</code> where the transcript should be inserted.</p>
             <div id="custom-templates-list"></div>
-            <button id="add-template-btn" class="setting-save-btn" style="margin-top:4px">Add template</button>
+            <div style="display:flex;gap:8px;margin-top:4px">
+              <button id="add-template-btn" class="setting-save-btn">Add template</button>
+              <button id="reset-templates-btn" class="setting-save-btn" style="background:transparent;color:var(--color-slate);border:1px solid var(--color-border)">Reset defaults</button>
+            </div>
           </div>
 
           <div class="settings-section">

@@ -506,21 +506,13 @@ document.getElementById("s-hf-token").addEventListener("change", async (e) => {
 let _customTemplates = [];
 
 async function loadCustomTemplatesEditor() {
-  // The GET /api/templates returns {templates: [{id, name, builtin}, ...]}
-  // but doesn't include prompts for custom ones. We need those for editing.
-  // Custom templates with prompts are stored via PUT /api/templates.
-  // Read them from a dedicated endpoint.
-  const data = await fetchJSON("/api/templates?include_prompts=1");
-  _customTemplates = (data.templates || []).filter(t => !t.builtin);
+  const data = await fetchJSON("/api/templates");
+  _customTemplates = data.templates || [];
   renderCustomTemplates();
 }
 
 function renderCustomTemplates() {
   const list = document.getElementById("custom-templates-list");
-  if (!_customTemplates.length) {
-    list.innerHTML = '<div class="setting-desc">No custom templates yet.</div>';
-    return;
-  }
   list.innerHTML = _customTemplates.map((t, i) =>
     `<div class="custom-template-card" data-index="${i}">
       <input type="text" value="${esc(t.name)}" placeholder="Template name" class="ct-name">
@@ -580,6 +572,17 @@ document.getElementById("add-template-btn").addEventListener("click", () => {
   // Focus the new template's name input
   const cards = document.querySelectorAll(".custom-template-card");
   if (cards.length) cards[cards.length - 1].querySelector(".ct-name").focus();
+});
+
+document.getElementById("reset-templates-btn").addEventListener("click", async () => {
+  const res = await fetchJSON("/api/templates/reset-defaults", {
+    method: "POST",
+  });
+  if (res.templates) {
+    _customTemplates = res.templates;
+    renderCustomTemplates();
+    showStatusMessage("Default templates restored");
+  }
 });
 
 document.getElementById("save-dictionary-btn").addEventListener("click", async () => {

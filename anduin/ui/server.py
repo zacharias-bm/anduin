@@ -90,19 +90,16 @@ class _Handler(BaseHTTPRequestHandler):
                 "diarization_enabled": store.get_config("diarization_enabled", False),
             })
 
-        elif path.startswith("/api/templates"):
-            from anduin.summarization.engine import get_templates
-            custom = store.get_config("custom_templates", [])
-            qs = parse_qs(parsed.query)
-            include_prompts = qs.get("include_prompts", ["0"])[0] == "1"
-            templates = get_templates(custom)
-            if include_prompts:
-                # Attach prompts for custom templates
-                custom_by_id = {ct["id"]: ct for ct in custom}
-                for t in templates:
-                    if not t["builtin"] and t["id"] in custom_by_id:
-                        t["prompt"] = custom_by_id[t["id"]].get("prompt", "")
+        elif path == "/api/templates":
+            from anduin.summarization.engine import ensure_default_templates
+            templates = ensure_default_templates(store.get_config("custom_templates", []))
+            # Save back if defaults were seeded
+            store.set_config("custom_templates", templates)
             self._json({"templates": templates})
+
+        elif path == "/api/templates/defaults":
+            from anduin.summarization.engine import get_default_templates
+            self._json({"defaults": get_default_templates()})
 
         elif path == "/api/dictionary":
             self._json({"words": store.get_config("dictionary", [])})
@@ -225,13 +222,12 @@ class _Handler(BaseHTTPRequestHandler):
             try:
                 body = json.loads(self._read_body())
                 template_id = body.get("template_id", "standard")
-                # If it's a custom template, look up its prompt
-                if not template_id.startswith(("standard", "brief", "action_items", "narrative")):
-                    custom_templates = store.get_config("custom_templates", [])
-                    for ct in custom_templates:
-                        if ct.get("id") == template_id:
-                            custom_prompt = ct.get("prompt", "")
-                            break
+                # Look up prompt from stored templates
+                templates = store.get_config("custom_templates", [])
+                for ct in templates:
+                    if ct.get("id") == template_id:
+                        custom_prompt = ct.get("prompt", "")
+                        break
             except Exception:
                 pass
 
@@ -287,6 +283,18 @@ class _Handler(BaseHTTPRequestHandler):
                 self._json({"ok": True})
             else:
                 self._json({"error": "app not linked"}, 500)
+        elif path == "/api/templates/reset-defaults":
+            from anduin.summarization.engine import get_default_templates
+            existing = store.get_config("custom_templates", [])
+            defaults = get_default_templates()
+            # Add back any defaults that are missing (by id)
+            existing_ids = {t.get("id") for t in existing}
+            for d in defaults:
+                if d["id"] not in existing_ids:
+                    existing.insert(0, d)
+            store.set_config("custom_templates", existing)
+            self._json({"ok": True, "templates": existing})
+
         elif path == "/api/check-update":
             if hasattr(self.server, "_app"):
                 self.server._app._check_updates(None)

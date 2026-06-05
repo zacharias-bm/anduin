@@ -101,19 +101,19 @@ def summarize(
     return _call_ollama(model, prompt, progress)
 
 
-def get_templates(custom_templates: list[dict] | None = None) -> list[dict]:
-    """Return all available templates (built-in + custom)."""
-    templates = [
-        {"id": tid, "name": t["name"], "builtin": True}
+def get_default_templates() -> list[dict]:
+    """Return the default templates as user-editable dicts."""
+    return [
+        {"id": tid, "name": t["name"], "prompt": t["prompt"]}
         for tid, t in BUILTIN_TEMPLATES.items()
     ]
-    for ct in (custom_templates or []):
-        templates.append({
-            "id": ct.get("id", ""),
-            "name": ct.get("name", "Custom"),
-            "builtin": False,
-        })
-    return templates
+
+
+def ensure_default_templates(existing: list[dict]) -> list[dict]:
+    """Seed default templates into the list if it's empty (first run)."""
+    if existing:
+        return existing
+    return get_default_templates()
 
 
 def _format_transcript(segments: list[dict]) -> str:
