@@ -936,9 +936,9 @@ body.dark-mode #on-device-subtitle {
 }
 
 #status-bar {
-  background: var(--color-surface);
-  color: var(--color-stone);
-  border-top: 1px solid var(--color-border);
+  background: #0E1B2E;
+  color: #CFE0EF;
+  border-top: none;
   padding: 12px 32px;
   font-weight: 600;
   display: flex;
@@ -956,9 +956,17 @@ body.dark-mode #on-device-subtitle {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--color-slate);
+  background: #7FA0C2;
   animation: pulse 1.5s ease-in-out infinite;
   flex-shrink: 0;
+}
+
+body.dark-mode #status-bar {
+  background: #2C2C2E;
+  color: #D1D1D6;
+}
+body.dark-mode #status-bar::before {
+  background: #7FA0C2;
 }
 
 .speaker-name {
