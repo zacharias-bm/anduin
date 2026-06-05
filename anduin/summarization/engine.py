@@ -144,9 +144,6 @@ def _fill_template(template: str, transcript: str) -> str:
 def _call_ollama(model: str, prompt: str, progress: Callable[[str], None] | None) -> str:
     streaming = progress is not None
 
-    # Full Metal + all CPU cores for fastest possible load and inference.
-    # keep_alive=0 unloads the model immediately after generation, so
-    # memory is only used while actively summarizing.
     payload = {
         "model": model,
         "prompt": prompt,
@@ -154,12 +151,23 @@ def _call_ollama(model: str, prompt: str, progress: Callable[[str], None] | None
         "keep_alive": 0,
     }
 
-    response = requests.post(
-        OLLAMA_URL,
-        json=payload,
-        stream=streaming,
-        timeout=600,
-    )
+    try:
+        response = requests.post(
+            OLLAMA_URL,
+            json=payload,
+            stream=streaming,
+            timeout=600,
+        )
+    except requests.ConnectionError:
+        raise RuntimeError(
+            "Cannot connect to Ollama. Make sure Ollama is running "
+            "(open the Ollama app or run 'ollama serve' in a terminal)."
+        )
+
+    if response.status_code == 404:
+        raise RuntimeError(
+            f"Model '{model}' not found. Run 'ollama pull {model}' to download it."
+        )
     response.raise_for_status()
 
     if not streaming:

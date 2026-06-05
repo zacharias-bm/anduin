@@ -708,8 +708,16 @@ function connectSSE() {
     }
   });
 
-  es.addEventListener("error", () => {
-    if (statusBar) statusBar.style.display = "none";
+  // App-level errors from pipeline/summarization
+  es.addEventListener("app_error", (e) => {
+    const data = JSON.parse(e.data);
+    if (statusBar) statusBar.style.display = "flex";
+    if (statusText) statusText.textContent = data.message || "An error occurred";
+    // Auto-hide after 6 seconds
+    setTimeout(() => { if (statusBar) statusBar.style.display = "none"; }, 6000);
+    // Re-enable summarize button
+    const btn = document.getElementById("summarize-btn");
+    if (btn) { btn.disabled = false; btn.textContent = "Summarize"; }
   });
 
   es.onerror = () => {

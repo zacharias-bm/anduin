@@ -235,7 +235,7 @@ class AnduinApp(rumps.App):
                 print(f"[pipeline] ERROR: {e}", flush=True)
                 traceback.print_exc()
                 self.title = None # Keep logo only
-                self._event_bus.publish("error", {"message": str(e)})
+                self._event_bus.publish("app_error", {"message": str(e)})
 
         threading.Thread(target=_run, daemon=True).start()
 

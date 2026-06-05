@@ -245,7 +245,7 @@ class _Handler(BaseHTTPRequestHandler):
                     )
                     self.event_bus.publish("summarize_done", {"meeting_id": mid})
                 except Exception as e:
-                    self.event_bus.publish("error", {"message": str(e)})
+                    self.event_bus.publish("app_error", {"message": str(e)})
 
             threading.Thread(target=_run, daemon=True).start()
 
