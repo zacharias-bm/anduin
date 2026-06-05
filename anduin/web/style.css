@@ -8,6 +8,7 @@
   --color-stone: #1B1B1F;
   --color-slate: #4A4E55;
   --color-navy: #0E1B2E;
+  --color-accent: #0E1B2E;
   --color-deep: #0A1424;
   --color-river-mid: #7FA0C2;
   --color-river-light: #CFE0EF;
@@ -28,19 +29,20 @@
 }
 
 body.dark-mode {
-  --color-bg: #0E1B2E;
-  --color-surface: #142236;
-  --color-paper: #0E1B2E;
-  --color-stone: #F6F4EE;
-  --color-slate: #7FA0C2;
-  --color-navy: #0E1B2E;
-  --color-border: #1E3350;
-  --color-hover: rgba(255, 255, 255, 0.05);
-  --color-active: rgba(255, 255, 255, 0.08);
-  --color-btn-bg: #CFE0EF;
-  --color-btn-fg: #0E1B2E;
-  --color-card-bg: #142236;
-  --color-input-bg: rgba(255,255,255,0.06);
+  --color-bg: #1C1C1E;
+  --color-surface: #2C2C2E;
+  --color-paper: #1C1C1E;
+  --color-stone: #D1D1D6;
+  --color-slate: #8E8E93;
+  --color-navy: #1C1C1E;
+  --color-accent: #D1D1D6;
+  --color-border: #38383A;
+  --color-hover: rgba(255, 255, 255, 0.06);
+  --color-active: rgba(255, 255, 255, 0.1);
+  --color-btn-bg: #2C2C2E;
+  --color-btn-fg: #D1D1D6;
+  --color-card-bg: #2C2C2E;
+  --color-input-bg: rgba(255,255,255,0.07);
 }
 
 * {
@@ -219,13 +221,19 @@ body.dark-mode #logo {
   transform: translateY(-1px);
 }
 body.dark-mode #record-btn {
-  background: #CFE0EF;
-  color: #0E1B2E;
+  background: #3A3A3C;
+  color: #D1D1D6;
 }
 body.dark-mode #on-device-card {
-  background: #142236;
+  background: #2C2C2E;
   box-shadow: none;
   border: 1px solid var(--color-border);
+}
+body.dark-mode #on-device-title {
+  color: #D1D1D6;
+}
+body.dark-mode #on-device-subtitle {
+  color: #8E8E93;
 }
 
 #record-btn.recording {
@@ -296,7 +304,7 @@ body.dark-mode #on-device-card {
 
 #settings-btn.active {
   background: var(--color-btn-bg);
-  border-color: var(--color-navy);
+  border-color: var(--color-border);
   color: var(--color-btn-fg);
 }
 
@@ -369,7 +377,7 @@ body.dark-mode #on-device-card {
   font-weight: 800;
   letter-spacing: -0.5px;
   margin-bottom: 40px;
-  color: var(--color-navy);
+  color: var(--color-accent);
 }
 
 .settings-section {
@@ -534,7 +542,7 @@ body.dark-mode #on-device-card {
 }
 .custom-select-option.selected {
   font-weight: 600;
-  color: var(--color-navy);
+  color: var(--color-accent);
 }
 
 .setting-desc a {
@@ -638,7 +646,7 @@ body.dark-mode #on-device-card {
 }
 
 .speaker-name-input:focus {
-  border-color: var(--color-navy);
+  border-color: var(--color-border);
   box-shadow: 0 0 0 3px rgba(14, 27, 46, 0.08);
 }
 
@@ -859,7 +867,7 @@ body.dark-mode #on-device-card {
 #transcript-section h3 {
   font-size: 14px;
   font-weight: 700;
-  color: var(--color-navy);
+  color: var(--color-accent);
   text-transform: uppercase;
   letter-spacing: 1px;
   margin-bottom: 32px;
@@ -990,7 +998,7 @@ body.dark-mode #on-device-card {
 #modal h3 {
   font-size: 18px;
   font-weight: 800;
-  color: var(--color-navy);
+  color: var(--color-accent);
   letter-spacing: -0.3px;
   margin-bottom: 4px;
 }
@@ -1023,7 +1031,7 @@ body.dark-mode #on-device-card {
 }
 
 .modal-option:hover {
-  border-color: var(--color-navy);
+  border-color: var(--color-border);
   background: var(--color-surface);
   transform: translateY(-2px);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
@@ -1034,7 +1042,7 @@ body.dark-mode #on-device-card {
 }
 
 .modal-option-icon {
-  color: var(--color-navy);
+  color: var(--color-accent);
   opacity: 0.7;
   margin-bottom: 4px;
 }
@@ -1046,7 +1054,7 @@ body.dark-mode #on-device-card {
 .modal-option-label {
   font-size: 14px;
   font-weight: 700;
-  color: var(--color-navy);
+  color: var(--color-accent);
 }
 
 .modal-option-desc {
