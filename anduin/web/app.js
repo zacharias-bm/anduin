@@ -351,8 +351,14 @@ async function loadSettingsPanel() {
   const deviceData = await fetchJSON("/api/devices");
   const micSelect = document.getElementById("s-mic-device");
   micSelect.innerHTML = '<option value="">System default</option>' +
-    deviceData.devices.map(d =>
-      `<option value="${d.index}" ${d.index === deviceData.selected ? "selected" : ""}>${esc(d.name)}</option>`
+    deviceData.inputs.map(d =>
+      `<option value="${d.index}" ${d.index === deviceData.selected_input ? "selected" : ""}>${esc(d.name)}</option>`
+    ).join("");
+
+  const speakerSelect = document.getElementById("s-speaker-device");
+  speakerSelect.innerHTML = '<option value="">System default</option>' +
+    deviceData.outputs.map(d =>
+      `<option value="${d.index}" ${d.index === deviceData.selected_output ? "selected" : ""}>${esc(d.name)}</option>`
     ).join("");
 }
 
@@ -400,6 +406,11 @@ document.getElementById("save-dictionary-btn").addEventListener("click", async (
 document.getElementById("s-mic-device").addEventListener("change", e => {
   const val = e.target.value;
   saveSetting("device_inperson", val === "" ? null : parseInt(val));
+});
+
+document.getElementById("s-speaker-device").addEventListener("change", e => {
+  const val = e.target.value;
+  saveSetting("device_speaker", val === "" ? null : parseInt(val));
 });
 
 document.getElementById("settings-btn").addEventListener("click", () => {

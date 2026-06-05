@@ -237,8 +237,12 @@ class SystemAudioRecorder:
             pass
 
 
-# ObjC delegate class for receiving audio samples
-class _AudioOutputDelegate(AppKit.NSObject):
+# ObjC delegate class for receiving audio samples.
+# Declare protocol conformance via the protocols= parameter.
+_SCStreamOutput = objc.protocolNamed("SCStreamOutput")
+
+
+class _AudioOutputDelegate(AppKit.NSObject, protocols=[_SCStreamOutput]):
     """SCStreamOutput delegate that receives audio sample buffers."""
 
     def initWithRecorder_(self, recorder):
@@ -252,7 +256,3 @@ class _AudioOutputDelegate(AppKit.NSObject):
         """Called by ScreenCaptureKit when audio data is available."""
         if output_type in (SC.SCStreamOutputTypeAudio, SC.SCStreamOutputTypeMicrophone):
             self._recorder._handle_audio_buffer(sample_buffer)
-
-
-# Register the delegate as conforming to SCStreamOutput protocol
-objc.classAddProtocol(_AudioOutputDelegate, objc.protocolNamed("SCStreamOutput"))

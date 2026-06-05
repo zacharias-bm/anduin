@@ -91,10 +91,15 @@ class _Handler(BaseHTTPRequestHandler):
             self._json({"words": store.get_config("dictionary", [])})
 
         elif path == "/api/devices":
-            from anduin.capture.devices import list_input_devices, INPERSON_KEY
-            devices = list_input_devices()
-            stored = store.get_config(INPERSON_KEY)
-            self._json({"devices": devices, "selected": stored})
+            from anduin.capture.devices import list_input_devices, list_output_devices, INPERSON_KEY
+            inputs = list_input_devices()
+            outputs = list_output_devices()
+            stored_input = store.get_config(INPERSON_KEY)
+            stored_output = store.get_config("device_speaker")
+            self._json({
+                "inputs": inputs, "selected_input": stored_input,
+                "outputs": outputs, "selected_output": stored_output,
+            })
 
         elif path == "/api/hf-token":
             from anduin.setup.models import get_hf_token

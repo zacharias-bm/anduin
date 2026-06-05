@@ -13,6 +13,14 @@ def list_input_devices() -> list[dict]:
     ]
 
 
+def list_output_devices() -> list[dict]:
+    return [
+        {"index": i, "name": d["name"]}
+        for i, d in enumerate(sd.query_devices())
+        if d["max_output_channels"] > 0
+    ]
+
+
 def system_default_input() -> dict | None:
     try:
         idx = sd.default.device[0]
