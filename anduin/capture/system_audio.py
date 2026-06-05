@@ -23,11 +23,7 @@ CHANNELS = 1
 
 
 def has_permission() -> bool:
-    """Check if Screen Recording permission has been granted.
-
-    There's no direct API to check this pre-capture, so we attempt
-    to get shareable content. If it fails, permission hasn't been granted.
-    """
+    """Check if Screen Recording permission has been granted."""
     event = threading.Event()
     result = {"ok": False}
 
@@ -41,21 +37,26 @@ def has_permission() -> bool:
 
 
 def request_permission() -> bool:
-    """Trigger the macOS permission prompt by accessing shareable content.
-
-    Returns True if permission is granted.
-    """
+    """Trigger the macOS permission prompt by accessing shareable content."""
     return has_permission()
 
 
 class SystemAudioRecorder:
-    """Records system audio (+ optional mic) via ScreenCaptureKit."""
+    """Records system audio (+ optional mic) via ScreenCaptureKit.
+
+    System audio and mic are captured into separate timestamped buffers,
+    then mixed together at stop time to avoid ordering issues.
+    """
 
     def __init__(self):
-        self._frames: list[np.ndarray] = []
+        # Each entry is (timestamp_seconds, samples_array)
+        self._system_buffers: list[tuple[float, np.ndarray]] = []
+        self._mic_buffers: list[tuple[float, np.ndarray]] = []
         self._stream = None
         self._lock = threading.Lock()
         self._output_delegate = None
+        self._include_mic = False
+        self._debug_logged = False
         self.is_recording = False
 
     def start(self, include_mic: bool = True):
@@ -64,7 +65,10 @@ class SystemAudioRecorder:
         Args:
             include_mic: Also capture microphone input (True for digital meetings).
         """
-        self._frames = []
+        self._system_buffers = []
+        self._mic_buffers = []
+        self._include_mic = include_mic
+        self._debug_logged = False
         self.is_recording = True
 
         # Get shareable content (triggers permission if needed)
@@ -81,13 +85,11 @@ class SystemAudioRecorder:
 
         if content_result["error"] or not content_result["content"]:
             raise RuntimeError(
-                f"Cannot access screen content. Grant Screen Recording permission in "
-                f"System Settings → Privacy & Security → Screen Recording."
+                "Cannot access screen content. Grant Screen Recording permission in "
+                "System Settings → Privacy & Security → Screen Recording."
             )
 
         content = content_result["content"]
-
-        # Create a filter that captures all displays (we only want audio)
         displays = content.displays()
         if not displays:
             raise RuntimeError("No displays found")
@@ -97,41 +99,37 @@ class SystemAudioRecorder:
             displays[0], [], []
         )
 
-        # Configure: audio only, no video
+        # Configure: audio capture, minimal video
         config = SC.SCStreamConfiguration.alloc().init()
         config.setCapturesAudio_(True)
         config.setSampleRate_(SAMPLE_RATE)
         config.setChannelCount_(CHANNELS)
-        config.setExcludesCurrentProcessAudio_(True)  # Don't capture our own app's audio
+        config.setExcludesCurrentProcessAudio_(True)
 
-        # Capture mic too if requested
         if include_mic:
             config.setCaptureMicrophone_(True)
 
-        # Minimize video capture (can't fully disable it, but make it tiny)
+        # Minimize video (can't fully disable, but make it tiny)
         config.setWidth_(2)
         config.setHeight_(2)
 
-        # Create stream
+        # Create stream and delegate
         self._output_delegate = _AudioOutputDelegate.alloc().initWithRecorder_(self)
         self._stream = SC.SCStream.alloc().initWithFilter_captureOutputProperties_delegate_(
             content_filter, config, None
         )
 
-        # Add audio output handler
-        audio_queue = AppKit.NSOperationQueue.alloc().init()
-        audio_queue.setMaxConcurrentOperationCount_(1)
-
+        # Add system audio output
         success, error = self._stream.addStreamOutput_type_sampleHandlerQueue_error_(
             self._output_delegate,
             SC.SCStreamOutputTypeAudio,
-            None,  # Use default queue
+            None,
             None,
         )
         if not success:
             raise RuntimeError(f"Failed to add audio output: {error}")
 
-        # If capturing mic, add mic output too
+        # Add mic output
         if include_mic:
             success2, error2 = self._stream.addStreamOutput_type_sampleHandlerQueue_error_(
                 self._output_delegate,
@@ -159,7 +157,7 @@ class SystemAudioRecorder:
         print("[system_audio] capture started", flush=True)
 
     def stop(self, output_path: Path) -> Path:
-        """Stop capture and write audio to file."""
+        """Stop capture, mix streams, and write audio to file."""
         if self._stream:
             stop_event = threading.Event()
 
@@ -174,30 +172,82 @@ class SystemAudioRecorder:
         self.is_recording = False
 
         with self._lock:
-            if not self._frames:
-                print("[system_audio] Warning: no audio captured", flush=True)
-                audio = np.zeros((SAMPLE_RATE, CHANNELS), dtype="float32")
-            else:
-                audio = np.concatenate(self._frames, axis=0)
-                print(
-                    f"[system_audio] captured {len(self._frames)} buffers "
-                    f"({len(audio)/SAMPLE_RATE:.2f} seconds)",
-                    flush=True,
-                )
+            sys_bufs = list(self._system_buffers)
+            mic_bufs = list(self._mic_buffers)
+
+        audio = self._mix_streams(sys_bufs, mic_bufs)
+
+        if len(audio) == 0:
+            print("[system_audio] Warning: no audio captured", flush=True)
+            audio = np.zeros(SAMPLE_RATE, dtype="float32")
+        else:
+            duration = len(audio) / SAMPLE_RATE
+            print(f"[system_audio] captured {duration:.2f}s "
+                  f"({len(sys_bufs)} system + {len(mic_bufs)} mic buffers)", flush=True)
 
         sf.write(str(output_path), audio, SAMPLE_RATE)
         self._stream = None
         self._output_delegate = None
         return output_path
 
-    _debug_logged = False
+    def _mix_streams(
+        self,
+        sys_bufs: list[tuple[float, np.ndarray]],
+        mic_bufs: list[tuple[float, np.ndarray]],
+    ) -> np.ndarray:
+        """Mix system audio and mic streams into a single mono track.
 
-    def _handle_audio_buffer(self, sample_buffer):
+        Each stream is assembled in timestamp order into a continuous
+        array, then the two are summed together.
+        """
+        sys_audio = self._assemble_stream(sys_bufs)
+        mic_audio = self._assemble_stream(mic_bufs)
+
+        if len(sys_audio) == 0 and len(mic_audio) == 0:
+            return np.array([], dtype=np.float32)
+
+        if len(sys_audio) == 0:
+            return mic_audio
+        if len(mic_audio) == 0:
+            return sys_audio
+
+        # Pad shorter to match longer
+        max_len = max(len(sys_audio), len(mic_audio))
+        if len(sys_audio) < max_len:
+            sys_audio = np.pad(sys_audio, (0, max_len - len(sys_audio)))
+        if len(mic_audio) < max_len:
+            mic_audio = np.pad(mic_audio, (0, max_len - len(mic_audio)))
+
+        # Mix and normalize to prevent clipping
+        mixed = sys_audio + mic_audio
+        peak = np.abs(mixed).max()
+        if peak > 0.95:
+            mixed = mixed * (0.95 / peak)
+
+        return mixed
+
+    def _assemble_stream(self, buffers: list[tuple[float, np.ndarray]]) -> np.ndarray:
+        """Assemble timestamped buffers into a continuous audio stream."""
+        if not buffers:
+            return np.array([], dtype=np.float32)
+
+        # Sort by timestamp
+        buffers.sort(key=lambda x: x[0])
+
+        # Simple concatenation in timestamp order
+        arrays = [b[1] for b in buffers]
+        return np.concatenate(arrays)
+
+    def _handle_audio_buffer(self, sample_buffer, is_mic: bool):
         """Called by the delegate when audio data arrives."""
         try:
             import CoreMedia
 
-            # Get the raw data block from the sample buffer
+            # Get presentation timestamp for ordering
+            pts = CoreMedia.CMSampleBufferGetPresentationTimeStamp(sample_buffer)
+            timestamp = pts.value / pts.timescale if pts.timescale > 0 else 0.0
+
+            # Get the raw data block
             block_buffer = CoreMedia.CMSampleBufferGetDataBuffer(sample_buffer)
             if block_buffer is None:
                 return
@@ -206,13 +256,11 @@ class SystemAudioRecorder:
             if length == 0:
                 return
 
-            # CMBlockBufferCopyDataBytes is the most reliable way to
-            # extract bytes from a CMBlockBuffer via PyObjC.
+            # Extract raw audio bytes
             result = CoreMedia.CMBlockBufferCopyDataBytes(
                 block_buffer, 0, length, None
             )
 
-            # PyObjC returns (status, bytes_data)
             if isinstance(result, tuple):
                 status, raw_bytes = result[0], result[1]
                 if status != 0 or raw_bytes is None:
@@ -221,29 +269,25 @@ class SystemAudioRecorder:
                 return
 
             samples = np.frombuffer(raw_bytes, dtype=np.float32).copy()
-
             if len(samples) == 0:
                 return
 
-            # Debug: log first buffer info
+            # Debug: log first buffer info per stream
             if not self._debug_logged:
-                num_samples = CoreMedia.CMSampleBufferGetNumSamples(sample_buffer)
-                print(f"[system_audio] first buffer: {len(samples)} floats, "
-                      f"{num_samples} samples, {length} bytes", flush=True)
-                self._debug_logged = True
+                stream_type = "mic" if is_mic else "system"
+                print(f"[system_audio] first {stream_type} buffer: "
+                      f"{len(samples)} samples, ts={timestamp:.3f}", flush=True)
+                if not is_mic:
+                    self._debug_logged = True
 
-            # If stereo, mix down to mono
-            if CHANNELS == 1 and len(samples) > 1:
-                # SCK may deliver interleaved stereo
-                fmt_desc = CoreMedia.CMSampleBufferGetFormatDescription(sample_buffer)
-                if fmt_desc:
-                    asbd = CoreMedia.CMAudioFormatDescriptionGetStreamBasicDescription(fmt_desc)
-                    if asbd and hasattr(asbd, 'mChannelsPerFrame') and asbd.mChannelsPerFrame == 2:
-                        samples = samples.reshape(-1, 2).mean(axis=1)
+            # Flatten to mono (already configured as 1 channel, but safety check)
+            samples = samples.flatten()
 
-            samples = samples.reshape(-1, 1)
             with self._lock:
-                self._frames.append(samples)
+                if is_mic:
+                    self._mic_buffers.append((timestamp, samples))
+                else:
+                    self._system_buffers.append((timestamp, samples))
 
         except Exception as e:
             if not self._debug_logged:
@@ -252,7 +296,6 @@ class SystemAudioRecorder:
 
 
 # ObjC delegate class for receiving audio samples.
-# Declare protocol conformance via the protocols= parameter.
 _SCStreamOutput = objc.protocolNamed("SCStreamOutput")
 
 
@@ -268,5 +311,7 @@ class _AudioOutputDelegate(AppKit.NSObject, protocols=[_SCStreamOutput]):
 
     def stream_didOutputSampleBuffer_ofType_(self, stream, sample_buffer, output_type):
         """Called by ScreenCaptureKit when audio data is available."""
-        if output_type in (SC.SCStreamOutputTypeAudio, SC.SCStreamOutputTypeMicrophone):
-            self._recorder._handle_audio_buffer(sample_buffer)
+        if output_type == SC.SCStreamOutputTypeAudio:
+            self._recorder._handle_audio_buffer(sample_buffer, is_mic=False)
+        elif output_type == SC.SCStreamOutputTypeMicrophone:
+            self._recorder._handle_audio_buffer(sample_buffer, is_mic=True)
