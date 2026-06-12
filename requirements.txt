@@ -1,4 +1,4 @@
-faster-whisper
+mlx-whisper
 pyannote.audio
 silero-vad
 sounddevice

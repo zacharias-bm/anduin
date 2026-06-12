@@ -267,11 +267,14 @@ async function fetchJSON(url, opts) {
 // ── Step 0: Hardware ────────────────────────────────
 async function initHardware() {
   const hw = await fetchJSON("/api/wizard/hardware");
+  const whisperName = hw.whisper_model.includes("large-v3-turbo") ? "Large V3 Turbo"
+    : hw.whisper_model.includes("medium") && hw.whisper_model.includes("4bit") ? "Medium (4-bit)"
+    : hw.whisper_model.includes("medium") ? "Medium" : hw.whisper_model;
   const info = document.getElementById("hw-info");
   info.innerHTML = [
     ["Chip", "Apple " + hw.chip],
     ["RAM", hw.ram_gb + " GB"],
-    ["Transcription", "Whisper " + hw.whisper_model],
+    ["Transcription", "Whisper " + whisperName + " (MLX)"],
     ["Summarization", hw.llm_model],
   ].map(([l, v]) => `<div class="info-row"><span class="info-label">${l}</span><span class="info-value">${v}</span></div>`).join("");
 }
@@ -279,7 +282,10 @@ async function initHardware() {
 // ── Step 1: Whisper ─────────────────────────────────
 async function initWhisper() {
   const hw = await fetchJSON("/api/wizard/hardware");
-  document.getElementById("whisper-subtitle").textContent = `Whisper ${hw.whisper_model}`;
+  const whisperName = hw.whisper_model.includes("large-v3-turbo") ? "Large V3 Turbo"
+    : hw.whisper_model.includes("medium") && hw.whisper_model.includes("4bit") ? "Medium (4-bit)"
+    : hw.whisper_model.includes("medium") ? "Medium" : hw.whisper_model;
+  document.getElementById("whisper-subtitle").textContent = `Whisper ${whisperName} (MLX)`;
 
   const status = await fetchJSON("/api/wizard/whisper/status");
   if (status.downloaded) {
@@ -291,17 +297,13 @@ async function initWhisper() {
   }
 
   // Start download
-  document.getElementById("whisper-status").textContent = "Loading…";
+  document.getElementById("whisper-status").textContent = "Preparing download…";
+  document.getElementById("whisper-progress").style.width = "0%";
   fetch("/api/wizard/whisper/download", { method: "POST" });
 
-  // Poll progress
+  // Poll progress — only update the bar once real byte progress arrives
   const poll = setInterval(async () => {
     const p = await fetchJSON("/api/wizard/whisper/progress");
-    const pct = p.total > 0 ? Math.round(p.downloaded / p.total * 100) : 0;
-    document.getElementById("whisper-progress").style.width = pct + "%";
-    if (p.total > 0) {
-      document.getElementById("whisper-status").textContent = `Downloading model — ${pct}%`;
-    }
 
     if (p.done) {
       clearInterval(poll);
@@ -309,6 +311,7 @@ async function initWhisper() {
       document.getElementById("whisper-status").textContent = "Complete";
       document.getElementById("whisper-btn").textContent = "Continue";
       document.getElementById("whisper-btn").disabled = false;
+      return;
     }
     if (p.error) {
       clearInterval(poll);
@@ -316,6 +319,12 @@ async function initWhisper() {
       document.getElementById("whisper-btn").textContent = "Retry";
       document.getElementById("whisper-btn").disabled = false;
       document.getElementById("whisper-btn").onclick = () => { showStep(1); };
+      return;
+    }
+    if (p.total > 0 && p.downloaded > 0) {
+      const pct = Math.min(99, Math.round(p.downloaded / p.total * 100));
+      document.getElementById("whisper-progress").style.width = pct + "%";
+      document.getElementById("whisper-status").textContent = `Downloading model — ${pct}%`;
     }
   }, 500);
 }

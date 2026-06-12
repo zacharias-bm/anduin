@@ -10,16 +10,16 @@ KEYCHAIN_SERVICE = "Anduin"
 KEYCHAIN_KEY = "huggingface_token"
 
 WHISPER_REPOS = {
-    "medium":   "Systran/faster-whisper-medium",
-    "large-v2": "Systran/faster-whisper-large-v2",
-    "large-v3": "Systran/faster-whisper-large-v3",
+    "mlx-community/whisper-medium-mlx-4bit":  "mlx-community/whisper-medium-mlx-4bit",
+    "mlx-community/whisper-medium-mlx":       "mlx-community/whisper-medium-mlx",
+    "mlx-community/whisper-large-v3-turbo":   "mlx-community/whisper-large-v3-turbo",
 }
 PYANNOTE_REPO = "pyannote/speaker-diarization-3.1"
 
 WHISPER_SIZES = {
-    "medium":   "1.5 GB",
-    "large-v2": "3.1 GB",
-    "large-v3": "3.1 GB",
+    "mlx-community/whisper-medium-mlx-4bit":  "0.4 GB",
+    "mlx-community/whisper-medium-mlx":       "1.5 GB",
+    "mlx-community/whisper-large-v3-turbo":   "3.1 GB",
 }
 
 # Progress callback type: (current_file, total_files, filename)
@@ -27,12 +27,15 @@ ProgressFn = Callable[[int, int, str], None]
 
 
 def whisper_is_downloaded(model_size: str) -> bool:
-    repo = WHISPER_REPOS.get(model_size)
-    return repo is not None and try_to_load_from_cache(repo, "config.json") is not None
+    repo = WHISPER_REPOS.get(model_size, model_size)
+    cached = try_to_load_from_cache(repo, "config.json")
+    if cached is not None:
+        return True
+    return try_to_load_from_cache(repo, "weights.npz") is not None
 
 
 def download_whisper(model_size: str, progress: ProgressFn | None = None) -> Path:
-    repo = WHISPER_REPOS[model_size]
+    repo = WHISPER_REPOS.get(model_size, model_size)
     files = list(list_repo_files(repo))
     total = len(files)
     last_path = None
@@ -49,7 +52,7 @@ ByteProgressFn = Callable[[int, int, str], None]
 
 def download_whisper_with_progress(model_size: str, progress: ByteProgressFn | None = None) -> Path:
     """Download Whisper model with byte-level progress via custom tqdm class."""
-    repo = WHISPER_REPOS[model_size]
+    repo = WHISPER_REPOS.get(model_size, model_size)
     files = list(list_repo_files(repo))
 
     # Track cumulative bytes across all files

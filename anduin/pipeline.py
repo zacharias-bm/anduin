@@ -24,6 +24,11 @@ def run(
     """
     Run the full pipeline on an audio or video file.
     Returns the meeting output directory.
+
+    Resilience: the audio file is saved to the meeting directory and
+    the meeting is indexed FIRST.  Transcription and summarization are
+    best-effort — if either fails, the meeting still exists with
+    whatever was produced so the user never loses a recording.
     """
     def _p(stage: str, msg: str):
         if progress:
@@ -35,6 +40,7 @@ def run(
 
     out_dir = meeting_dir(title)
 
+    # ── PHASE 1: Secure the audio to the meeting directory ────────────
     if needs_extraction(audio_path):
         _p("extract", f"Extracting audio from {audio_path.name}...")
         audio_path = extract_audio(audio_path, out_dir / "audio.wav")
@@ -44,61 +50,94 @@ def run(
             shutil.copy2(audio_path, dest)
         audio_path = dest
 
-    diarization_enabled = get_config("diarization_enabled", False)
+    # Index the meeting immediately so it's visible even if later steps fail.
+    # The user will see the meeting with audio but no transcript/summary,
+    # which is infinitely better than losing the entire recording.
+    from anduin.storage.store import _index_meeting
+    _index_meeting(out_dir, title=title)
+    print(f"[pipeline] meeting secured: {out_dir}", flush=True)
 
-    if diarization_enabled:
-        _p("diarize", "Identifying speakers...")
-        from anduin.diarization.diarizer import diarize
-        diarization = diarize(audio_path)
-        print(f"[pipeline] diarize: found {len(diarization)} segments", flush=True)
-    else:
-        diarization = []
-        print("[pipeline] diarize: skipped (disabled)", flush=True)
+    # ── PHASE 2: Transcription (best-effort) ──────────────────────────
+    segments = []
+    try:
+        diarization_enabled = get_config("diarization_enabled", False)
 
-    _p("transcribe", "Transcribing...")
-    dictionary = get_config("dictionary", [])
-    transcript = transcribe(audio_path, model_size=whisper_model, dictionary=dictionary or None)
-    print(f"[pipeline] transcribe: found {len(transcript)} segments", flush=True)
+        if diarization_enabled:
+            _p("diarize", "Identifying speakers...")
+            from anduin.diarization.diarizer import diarize
+            diarization = diarize(audio_path)
+            print(f"[pipeline] diarize: found {len(diarization)} segments", flush=True)
+        else:
+            diarization = []
+            print("[pipeline] diarize: skipped (disabled)", flush=True)
 
-    _p("align", "Aligning transcript with speakers...")
-    segments = align(diarization, transcript, speaker_names=get_speaker_names())
-    print(f"[pipeline] align: produced {len(segments)} merged segments", flush=True)
-    write_transcript(segments, out_dir)
+        _p("transcribe", "Transcribing...")
+        dictionary = get_config("dictionary", [])
+        transcript = transcribe(audio_path, model_size=whisper_model, dictionary=dictionary or None)
+        print(f"[pipeline] transcribe: found {len(transcript)} segments", flush=True)
 
-    if auto_summarize:
-        _p("summarize", "Generating summary...")
-        default_tid = get_config("default_template", None)
-        templates = get_config("custom_templates", [])
-        custom_prompt = None
-        template_id = "standard"
-        if default_tid:
-            for ct in templates:
-                if ct.get("id") == default_tid:
-                    template_id = default_tid
-                    custom_prompt = ct.get("prompt", "")
-                    break
-        summary = summarize(
-            segments,
-            model=llm_model,
-            template_id=template_id,
-            custom_prompt=custom_prompt,
-            progress=None,
-        )
-        save_summary(out_dir, summary, title=title, template_id=template_id)
-    else:
-        _p("skip_summarize", "Skipping auto-summarization")
-        # Still index it so it shows up in the list
-        from anduin.storage.store import _index_meeting
+        _p("align", "Aligning transcript with speakers...")
+        segments = align(diarization, transcript, speaker_names=get_speaker_names())
+        print(f"[pipeline] align: produced {len(segments)} merged segments", flush=True)
+
+        # LLM post-processing: fix names, remove filler, clean grammar
+        if segments:
+            _p("cleaning", "Cleaning transcript...")
+            from anduin.summarization.engine import clean_transcript
+            segments = clean_transcript(segments, model=llm_model, dictionary=dictionary or None)
+            print(f"[pipeline] transcript cleaned", flush=True)
+
+        write_transcript(segments, out_dir)
+
+        # Re-index with transcript metadata (duration, speaker count)
         _index_meeting(out_dir, title=title)
+    except Exception as e:
+        import traceback
+        print(f"[pipeline] TRANSCRIPTION FAILED (meeting audio is safe): {e}", flush=True)
+        traceback.print_exc()
+        _p("transcribe_error", "Transcription failed — audio was saved")
+
+    # ── PHASE 3: Summarization (best-effort) ──────────────────────────
+    if auto_summarize and segments:
+        try:
+            _p("summarize", "Generating summary...")
+            default_tid = get_config("default_template", None)
+            templates = get_config("custom_templates", [])
+            custom_prompt = None
+            template_id = "standard"
+            if default_tid:
+                for ct in templates:
+                    if ct.get("id") == default_tid:
+                        template_id = default_tid
+                        custom_prompt = ct.get("prompt", "")
+                        break
+            summary = summarize(
+                segments,
+                model=llm_model,
+                template_id=template_id,
+                custom_prompt=custom_prompt,
+                progress=None,
+            )
+            save_summary(out_dir, summary, title=title, template_id=template_id)
+        except Exception as e:
+            import traceback
+            print(f"[pipeline] SUMMARIZATION FAILED (transcript is safe): {e}", flush=True)
+            traceback.print_exc()
+            _p("summarize_error", "Summarization failed — transcript was saved")
+    elif not auto_summarize:
+        _p("skip_summarize", "Skipping auto-summarization")
 
     # Delete audio file after processing unless the user opted to keep it
     if not get_config("keep_audio", False):
         audio_file = out_dir / "audio.wav"
         if audio_file.exists():
-            audio_file.unlink()
-            print("[pipeline] audio file removed (keep_audio=off)", flush=True)
+            try:
+                audio_file.unlink()
+                print("[pipeline] audio file removed (keep_audio=off)", flush=True)
+            except Exception:
+                pass  # Not worth failing over
 
-    _p("done", str(out_dir))
+    _p("done", "")
     return out_dir
 
 
@@ -138,5 +177,5 @@ def summarize_meeting(
         existing_title = row[0] if row else None
     
     save_summary(meeting_path, summary, title=existing_title, template_id=template_id)
-    _p("done", "Summary complete")
+    _p("done", "")
     return summary

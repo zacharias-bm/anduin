@@ -6,18 +6,38 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
+import AppKit
+import objc
 import rumps
 
 from anduin.capture.devices import device_for_mode
 from anduin.capture.recorder import Recorder
 from anduin.hardware.detect import detect as detect_hardware
 from anduin.pipeline import run as run_pipeline
+from anduin.session import RecordingSession, recover_chunks
 from anduin.setup import ollama
 from anduin.setup.wizard import is_setup_complete, run_wizard
 from anduin.storage import store
 from anduin.ui.server import EventBus, start_server
 from anduin.ui.webview import AnduinWindow
 
+
+class _MenuTarget(AppKit.NSObject):
+    """Bridge between NSMenu item actions and Python callbacks."""
+
+    def initWithCallbacks_(self, callbacks):
+        self = objc.super(_MenuTarget, self).init()
+        if self is None:
+            return None
+        self._callbacks = callbacks
+        return self
+
+    @objc.typedSelector(b"v@:@")
+    def menuAction_(self, sender):
+        tag = sender.tag()
+        cb = self._callbacks.get(tag)
+        if cb:
+            cb(sender)
 
 
 class AnduinApp(rumps.App):
@@ -41,6 +61,7 @@ class AnduinApp(rumps.App):
         # Pulse timer for recording (fast for smooth opacity changes)
         self._pulse_timer = rumps.Timer(self._pulse_tick, 0.05)
         self._pulse_index = 0
+        self._recovery_done = threading.Event()
 
         # UI Server & Window
         self._event_bus = EventBus()
@@ -49,8 +70,10 @@ class AnduinApp(rumps.App):
         self._window = AnduinWindow(self._port)
         
         self._build_menu()
+        self._build_native_menu()
         self._start_ollama_async()
-        
+        self._recover_orphaned_recording()
+
         # Auto-open on launch
         self._window.open()
 
@@ -102,6 +125,77 @@ class AnduinApp(rumps.App):
         # Check for updates in background on launch
         self._check_updates_async()
 
+    def _build_native_menu(self):
+        """Build the macOS native application menu (top-left "Anduin" menu)."""
+        callbacks = {
+            1: self._open_window,
+            2: self._record,
+            3: self._stop_recording,
+            4: self._open_settings,
+            5: self._check_updates,
+            6: self._quit,
+        }
+        self._menu_target = _MenuTarget.alloc().initWithCallbacks_(callbacks)
+        action = b"menuAction:"
+
+        menu_bar = AppKit.NSMenu.alloc().init()
+
+        # "Anduin" app menu
+        app_menu = AppKit.NSMenu.alloc().initWithTitle_("Anduin")
+
+        item = AppKit.NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Open Anduin", action, "o")
+        item.setTarget_(self._menu_target)
+        item.setTag_(1)
+        app_menu.addItem_(item)
+
+        app_menu.addItem_(AppKit.NSMenuItem.separatorItem())
+
+        item = AppKit.NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Record Meeting…", action, "r")
+        item.setTarget_(self._menu_target)
+        item.setTag_(2)
+        app_menu.addItem_(item)
+        self._native_record_item = item
+
+        item = AppKit.NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Stop Recording", action, ".")
+        item.setTarget_(self._menu_target)
+        item.setTag_(3)
+        item.setEnabled_(False)
+        app_menu.addItem_(item)
+        self._native_stop_item = item
+
+        app_menu.addItem_(AppKit.NSMenuItem.separatorItem())
+
+        item = AppKit.NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Settings…", action, ",")
+        item.setTarget_(self._menu_target)
+        item.setTag_(4)
+        app_menu.addItem_(item)
+
+        item = AppKit.NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Check for Updates…", action, "")
+        item.setTarget_(self._menu_target)
+        item.setTag_(5)
+        app_menu.addItem_(item)
+
+        app_menu.addItem_(AppKit.NSMenuItem.separatorItem())
+
+        item = AppKit.NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Quit Anduin", action, "q")
+        item.setTarget_(self._menu_target)
+        item.setTag_(6)
+        app_menu.addItem_(item)
+
+        # Wrap app_menu under a top-level item
+        top_item = AppKit.NSMenuItem.alloc().init()
+        top_item.setSubmenu_(app_menu)
+        menu_bar.addItem_(top_item)
+
+        AppKit.NSApp.setMainMenu_(menu_bar)
+
+    def _sync_native_menu_state(self, recording: bool):
+        """Enable/disable native menu items to match recording state."""
+        if hasattr(self, "_native_record_item"):
+            self._native_record_item.setEnabled_(not recording)
+        if hasattr(self, "_native_stop_item"):
+            self._native_stop_item.setEnabled_(recording)
+
     def _quit(self, _):
         import os
 
@@ -109,13 +203,30 @@ class AnduinApp(rumps.App):
         if hasattr(self, "_window"):
             self._window.close()
 
-        # Fire all cleanup in daemon threads so we don't block
-        def _cleanup():
+        # CRITICAL: If recording is active, flush the current chunk SYNCHRONOUSLY
+        # before exiting. Chunk files already on disk are safe; we just need
+        # to save whatever's accumulated since the last flush.
+        if self._recorder.is_recording:
+            print("[quit] recording active — flushing audio before exit...", flush=True)
             try:
-                if self._recorder.is_recording:
-                    self._recorder.stop(self._tmp_audio)
-            except Exception:
-                pass
+                session = getattr(self, "_session", None)
+                if session:
+                    # Stop the audio stream first so no new data arrives during flush
+                    self._recorder.stop_stream()
+                    session._stop_event.set()
+                    session._flush_chunk()
+                    print("[quit] final chunk flushed to _active_recording/", flush=True)
+                    # Leave _active_recording/ on disk — recover_chunks() picks it up
+                else:
+                    # Fallback: save the whole recording as a single file
+                    tmp_path = getattr(self, "_tmp_audio", store.APP_DIR / "recording_tmp.wav")
+                    self._recorder.stop(tmp_path)
+                    print(f"[quit] audio saved to {tmp_path}", flush=True)
+            except Exception as e:
+                print(f"[quit] WARNING: could not save recording: {e}", flush=True)
+
+        # Fire remaining cleanup in daemon threads so we don't block
+        def _cleanup():
             try:
                 from anduin.transcription.whisper import unload as unload_whisper
                 unload_whisper()
@@ -133,7 +244,6 @@ class AnduinApp(rumps.App):
 
         threading.Thread(target=_cleanup, daemon=True).start()
 
-        # Exit immediately — cleanup runs in background
         rumps.quit_application()
         os._exit(0)
 
@@ -152,23 +262,40 @@ class AnduinApp(rumps.App):
         """Begin recording with the given mode (called from web UI via API)."""
         if self._recorder.is_recording:
             return
-        # Save to a temp path; meeting dir is created after the user names the meeting
+        # Don't start a new recording while crash recovery is processing chunks
+        if not self._recovery_done.is_set():
+            self._event_bus.publish("app_error", {"message": "Recovering previous recording — please wait a moment."})
+            return
+        # Keep tmp_audio as a fallback path for quit-during-recording
         self._tmp_audio = store.APP_DIR / "recording_tmp.wav"
         if mode == "digital":
             self._recorder.start(mode="digital")
         else:
             self._recorder.start(device=device_for_mode(mode), mode="inperson")
+
+        # Start chunked recording session (handles flush timer + background workers)
+        def _session_progress(stage: str, msg: str):
+            print(f"[session] {stage}: {msg}", flush=True)
+            self._event_bus.publish("pipeline", {"stage": stage, "message": msg})
+
+        self._session = RecordingSession(
+            recorder=self._recorder,
+            on_progress=_session_progress,
+        )
+        self._session.start()
+
         self._pulse_timer.start()
         self.title = "Recording"
         self.menu["Record Meeting…"].set_callback(None)
         self.menu["Stop Recording"].set_callback(self._stop_recording)
+        self._sync_native_menu_state(True)
         self._event_bus.publish("recording", {"active": True})
         self._server._app_status = {"recording": True, "pipeline_stage": None}
 
     def _stop_recording(self, _):
         if not self._recorder.is_recording:
             return
-        
+
         # Stop pulsing immediately on main thread
         self._pulse_timer.stop()
         try:
@@ -182,19 +309,37 @@ class AnduinApp(rumps.App):
                 status_item.button().setAlphaValue_(1.0)
         except Exception:
             pass
-            
+
         self.icon = self._logo_path
         self.title = None
         self.menu["Record Meeting…"].set_callback(self._record)
         self.menu["Stop Recording"].set_callback(None)
+        self._sync_native_menu_state(False)
         self._event_bus.publish("recording", {"active": False})
-        self._event_bus.publish("pipeline", {"stage": "saving", "message": "Saving recording..."})
+        self._event_bus.publish("pipeline", {"stage": "saving", "message": "Transcribing..."})
         self._server._app_status = {"recording": False, "pipeline_stage": "saving"}
 
         def _finish():
-            tmp_path = self._recorder.stop(self._tmp_audio)
-            title = datetime.now().strftime("%Y-%m-%d %H:%M")
-            self._run_pipeline_async(tmp_path, title)
+            try:
+                title = datetime.now().strftime("%Y-%m-%d %H:%M")
+                session = getattr(self, "_session", None)
+                if session:
+                    out_dir = session.finish(title)
+                    self._session = None
+                    # Clean up any leftover recording_tmp.wav
+                    self._cleanup_tmp_recording()
+                else:
+                    # Fallback: legacy non-chunked path
+                    tmp_path = self._recorder.stop(self._tmp_audio)
+                    self._run_pipeline_async(tmp_path, title)
+            except Exception as e:
+                import traceback
+                print(f"[recorder] stop/finish failed: {e}", flush=True)
+                traceback.print_exc()
+                self._session = None
+                self._recorder.is_recording = False
+                self._event_bus.publish("pipeline", {"stage": "done", "message": ""})
+                self._event_bus.publish("app_error", {"message": f"Recording failed: {e}"})
 
         threading.Thread(target=_finish, daemon=True).start()
 
@@ -209,10 +354,9 @@ class AnduinApp(rumps.App):
         def _run():
             try:
                 print(f"[pipeline] starting: {audio_path}", flush=True)
-                known_speakers = set(store.get_speaker_names().keys())
-                
+
                 auto_summarize = store.get_config("auto_summarize", True)
-                
+
                 out_dir = run_pipeline(
                     audio_path=audio_path,
                     title=title,
@@ -221,13 +365,9 @@ class AnduinApp(rumps.App):
                 )
                 self.title = None # Keep logo only
 
-                # Clean up temp recording file
-                tmp = store.APP_DIR / "recording_tmp.wav"
-                if tmp.exists():
-                    try:
-                        tmp.unlink()
-                    except Exception:
-                        pass
+                # Pipeline succeeded (audio is safely in meeting dir).
+                # Clean up temp recording file.
+                self._cleanup_tmp_recording()
 
             except Exception as e:
                 import traceback
@@ -235,8 +375,38 @@ class AnduinApp(rumps.App):
                 traceback.print_exc()
                 self.title = None # Keep logo only
                 self._event_bus.publish("app_error", {"message": str(e)})
+                # Check if the audio was already copied to the meeting dir.
+                # If so, we can safely remove the tmp file.
+                # If not, leave it for crash recovery on next launch.
+                self._cleanup_tmp_recording_if_safe()
 
         threading.Thread(target=_run, daemon=True).start()
+
+    def _cleanup_tmp_recording(self):
+        """Remove the temp recording file after the pipeline has secured the audio."""
+        tmp = store.APP_DIR / "recording_tmp.wav"
+        if tmp.exists():
+            try:
+                tmp.unlink()
+                print("[pipeline] temp recording cleaned up", flush=True)
+            except Exception:
+                pass
+
+    def _cleanup_tmp_recording_if_safe(self):
+        """Remove temp recording only if a meeting dir already has the audio."""
+        tmp = store.APP_DIR / "recording_tmp.wav"
+        if not tmp.exists():
+            return
+        # Check if any recent meeting dir has an audio.wav (meaning copy succeeded)
+        try:
+            recent = sorted(store.MEETINGS_DIR.iterdir(), reverse=True)[:1]
+            if recent and (recent[0] / "audio.wav").exists():
+                tmp.unlink()
+                print("[pipeline] temp recording cleaned up (audio safe in meeting dir)", flush=True)
+            else:
+                print("[pipeline] keeping temp recording for crash recovery", flush=True)
+        except Exception:
+            pass  # When in doubt, keep the file
 
     # ── Settings ──────────────────────────────────────────────────────────────
 
@@ -311,6 +481,60 @@ class AnduinApp(rumps.App):
             import time
             time.sleep(4)
             self._event_bus.publish("pipeline", {"stage": "done", "message": ""})
+
+    def _recover_orphaned_recording(self):
+        """Check for audio left over from a crash or quit-during-recording.
+
+        Handles two cases:
+          1. _active_recording/ dir with chunk files (new chunked sessions)
+          2. recording_tmp.wav (legacy single-file recordings)
+        """
+        # Quick check on main thread: if there's nothing to recover,
+        # unblock recording immediately instead of waiting for the background thread.
+        chunk_dir = store.APP_DIR / "_active_recording"
+        tmp = store.APP_DIR / "recording_tmp.wav"
+        has_chunks = chunk_dir.exists() and any(chunk_dir.glob("chunk_*.wav"))
+        has_tmp = tmp.exists() and tmp.stat().st_size >= 1024
+
+        if not has_chunks and not has_tmp:
+            self._recovery_done.set()
+            return
+
+        def _run():
+            import time
+            time.sleep(3)  # Let the UI finish loading
+
+            try:
+                def _progress(stage, msg):
+                    self._event_bus.publish("pipeline", {"stage": stage, "message": msg})
+
+                # Case 1: Chunked session recovery
+                if has_chunks:
+                    try:
+                        result = recover_chunks(on_progress=_progress)
+                        if result:
+                            self._event_bus.publish("pipeline", {"stage": "done", "message": ""})
+                            return
+                    except Exception as e:
+                        print(f"[recovery] chunk recovery failed: {e}", flush=True)
+
+                # Case 2: Legacy recording_tmp.wav
+                if not has_tmp:
+                    return
+
+                print(f"[recovery] found orphaned recording: {tmp}", flush=True)
+                try:
+                    from datetime import datetime as _dt
+                    mtime = tmp.stat().st_mtime
+                    title = _dt.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M") + " (recovered)"
+                    _progress("recover", "Recovering recording from last session...")
+                    self._run_pipeline_async(tmp, title)
+                except Exception as e:
+                    print(f"[recovery] failed: {e}", flush=True)
+            finally:
+                self._recovery_done.set()
+
+        threading.Thread(target=_run, daemon=True).start()
 
     def _start_ollama_async(self):
         def _run():

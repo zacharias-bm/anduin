@@ -47,7 +47,7 @@ def _missing_packages() -> list[str]:
         ("imageio_ffmpeg",  "imageio-ffmpeg"),
         ("torch",           "torch"),
         ("torchaudio",      "torchaudio"),
-        ("faster_whisper",  "faster-whisper"),
+        ("mlx_whisper",     "mlx-whisper"),
         ("pyannote.audio",  "pyannote.audio"),
         ("yaml",            "pyyaml"),
     ]

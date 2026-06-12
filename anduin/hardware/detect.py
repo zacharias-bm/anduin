@@ -30,11 +30,11 @@ def _chip_generation() -> str:
 
 
 def _whisper_model(chip: str, ram_gb: int) -> str:
-    if chip == "M1" and ram_gb <= 8:
-        return "medium"
-    if chip in ("M2", "M3", "M4") and ram_gb >= 16:
-        return "large-v3"
-    return "large-v2"
+    if ram_gb <= 8:
+        return "mlx-community/whisper-medium-mlx-4bit"
+    if ram_gb <= 16:
+        return "mlx-community/whisper-medium-mlx"
+    return "mlx-community/whisper-large-v3-turbo"
 
 
 def _llm_model(chip: str, ram_gb: int) -> str:

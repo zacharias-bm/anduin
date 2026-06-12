@@ -246,6 +246,7 @@ function renderTranscript(segments) {
 
 function renderMarkdown(text) {
   return esc(text)
+    .replace(/^#### (.+)$/gm, "<h5>$1</h5>")
     .replace(/^### (.+)$/gm, "<h4>$1</h4>")
     .replace(/^## (.+)$/gm, "<h3>$1</h3>")
     .replace(/^# (.+)$/gm, "<h2>$1</h2>")
@@ -645,11 +646,9 @@ document.getElementById("s-check-updates").addEventListener("click", async () =>
     await fetch("/api/check-update", { method: "POST" });
   } catch (e) {
     showStatusMessage("Update check failed");
-  }
-  setTimeout(() => {
     btn.disabled = false;
     btn.textContent = "Check for updates";
-  }, 5000);
+  }
 });
 
 document.getElementById("settings-btn").addEventListener("click", () => {
@@ -723,6 +722,8 @@ function connectSSE() {
     const data = JSON.parse(e.data);
     if (data.stage === "done") {
       if (statusBar) statusBar.style.display = "none";
+      const updateBtn = document.getElementById("s-check-updates");
+      if (updateBtn) { updateBtn.disabled = false; updateBtn.textContent = "Check for updates"; }
       loadMeetings();
       if (currentMeetingId) selectMeeting(currentMeetingId);
     } else if (data.stage === "summarize_stream") {
@@ -793,6 +794,8 @@ function connectSSE() {
     // Re-enable summarize button
     const btn = document.getElementById("summarize-btn");
     if (btn) { btn.disabled = false; btn.textContent = "Summarize"; }
+    const updateBtn = document.getElementById("s-check-updates");
+    if (updateBtn) { updateBtn.disabled = false; updateBtn.textContent = "Check for updates"; }
   });
 
   es.onerror = () => {

@@ -3,7 +3,7 @@ requires = ["setuptools"]
 
 [project]
 name = "anduin"
-version = "0.1.3"
+version = "0.2.0"
 requires-python = ">=3.9"
 
 [project.scripts]
@@ -15,7 +15,7 @@ dev = ["pyinstaller"]
 [tool.briefcase]
 project_name = "Anduin"
 bundle = "com.backingminds"
-version = "0.1.3"
+version = "0.2.0"
 url = "https://backingminds.com"
 license = "Proprietary"
 author = "BackingMinds"
@@ -27,7 +27,7 @@ description = "Local meeting transcription and summarization"
 icon = "resources/anduin"
 sources = ["anduin"]
 requires = [
-    "faster-whisper",
+    "mlx-whisper",
     "pyannote.audio",
     "silero-vad",
     "sounddevice",

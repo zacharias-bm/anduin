@@ -162,8 +162,37 @@ class SystemAudioRecorder:
 
         print("[system_audio] capture started", flush=True)
 
+    def flush_chunk(self, output_path: Path) -> Path | None:
+        """Flush current buffers to a chunk file without stopping capture.
+
+        Returns the output path if audio was written, or None if buffers were empty.
+        """
+        with self._lock:
+            if not self._system_buffers and not self._mic_buffers:
+                return None
+            sys_bufs = list(self._system_buffers)
+            mic_bufs = list(self._mic_buffers)
+            self._system_buffers.clear()
+            self._mic_buffers.clear()
+
+        try:
+            audio = self._mix_streams(sys_bufs, mic_bufs)
+            if len(audio) == 0:
+                return None
+            sf.write(str(output_path), audio, SAMPLE_RATE)
+            duration = len(audio) / SAMPLE_RATE
+            print(f"[system_audio] flushed chunk: {duration:.1f}s → {output_path.name}", flush=True)
+            return output_path
+        except Exception as e:
+            print(f"[system_audio] chunk flush failed: {e} — attempting emergency dump", flush=True)
+            return self._emergency_dump(sys_bufs, mic_bufs, output_path)
+
     def stop(self, output_path: Path) -> Path:
-        """Stop capture, mix streams, and write audio to file."""
+        """Stop capture, mix streams, and write audio to file.
+
+        Resilience strategy: if the normal mix/write path fails, dump
+        raw buffers to individual WAV files so the audio is never lost.
+        """
         if self._stream:
             stop_event = threading.Event()
 
@@ -172,28 +201,91 @@ class SystemAudioRecorder:
                     print(f"[system_audio] stop error: {error}", flush=True)
                 stop_event.set()
 
-            self._stream.stopCaptureWithCompletionHandler_(on_stop)
-            stop_event.wait(timeout=5)
+            try:
+                self._stream.stopCaptureWithCompletionHandler_(on_stop)
+                if not stop_event.wait(timeout=10):
+                    print("[system_audio] Warning: stop timed out, proceeding anyway", flush=True)
+            except Exception as e:
+                print(f"[system_audio] Warning: stop failed: {e}, proceeding with buffers", flush=True)
 
         self.is_recording = False
 
         with self._lock:
             sys_bufs = list(self._system_buffers)
             mic_bufs = list(self._mic_buffers)
+            # Free RAM immediately — we have our copies
+            self._system_buffers.clear()
+            self._mic_buffers.clear()
 
-        audio = self._mix_streams(sys_bufs, mic_bufs)
+        try:
+            audio = self._mix_streams(sys_bufs, mic_bufs)
 
-        if len(audio) == 0:
-            print("[system_audio] Warning: no audio captured", flush=True)
-            audio = np.zeros(SAMPLE_RATE, dtype="float32")
-        else:
-            duration = len(audio) / SAMPLE_RATE
-            print(f"[system_audio] captured {duration:.2f}s "
-                  f"({len(sys_bufs)} system + {len(mic_bufs)} mic buffers)", flush=True)
+            if len(audio) == 0:
+                print("[system_audio] Warning: no audio captured", flush=True)
+                audio = np.zeros(SAMPLE_RATE, dtype="float32")
+            else:
+                duration = len(audio) / SAMPLE_RATE
+                print(f"[system_audio] captured {duration:.2f}s "
+                      f"({len(sys_bufs)} system + {len(mic_bufs)} mic buffers)", flush=True)
 
-        sf.write(str(output_path), audio, SAMPLE_RATE)
+            sf.write(str(output_path), audio, SAMPLE_RATE)
+        except Exception as e:
+            print(f"[system_audio] ERROR in mix/write: {e} — attempting emergency dump", flush=True)
+            output_path = self._emergency_dump(sys_bufs, mic_bufs, output_path)
+
         self._stream = None
         self._output_delegate = None
+        return output_path
+
+    def _emergency_dump(
+        self,
+        sys_bufs: list[tuple[float, np.ndarray]],
+        mic_bufs: list[tuple[float, np.ndarray]],
+        output_path: Path,
+    ) -> Path:
+        """Last-resort save: write raw buffers to disk without mixing.
+
+        Tries system audio first, then mic, then individual chunks.
+        Returns the path that was successfully written.
+        """
+        # Try writing each stream individually — simpler than mixing
+        for label, bufs in [("system", sys_bufs), ("mic", mic_bufs)]:
+            if not bufs:
+                continue
+            try:
+                arrays = [b[1] for b in sorted(bufs, key=lambda x: x[0])]
+                audio = np.concatenate(arrays)
+                sf.write(str(output_path), audio, SAMPLE_RATE)
+                print(f"[system_audio] emergency: saved {label} stream ({len(audio)/SAMPLE_RATE:.1f}s)", flush=True)
+                return output_path
+            except Exception as e2:
+                print(f"[system_audio] emergency: {label} concat failed: {e2}", flush=True)
+
+        # Last resort: write individual buffer chunks as separate files
+        recovery_dir = output_path.parent / "_audio_recovery"
+        recovery_dir.mkdir(exist_ok=True)
+        saved = 0
+        for label, bufs in [("sys", sys_bufs), ("mic", mic_bufs)]:
+            for i, (ts, samples) in enumerate(bufs):
+                try:
+                    chunk_path = recovery_dir / f"{label}_{i:05d}_{ts:.3f}.wav"
+                    sf.write(str(chunk_path), samples, SAMPLE_RATE)
+                    saved += 1
+                except Exception:
+                    pass
+        if saved > 0:
+            print(f"[system_audio] emergency: saved {saved} raw chunks to {recovery_dir}", flush=True)
+            # Write a marker so recovery knows about this
+            marker = output_path.parent / "_audio_recovery.marker"
+            marker.write_text(str(recovery_dir))
+        else:
+            print("[system_audio] emergency: could not save any audio data!", flush=True)
+
+        # Still write a minimal file so downstream doesn't crash on missing path
+        try:
+            sf.write(str(output_path), np.zeros(SAMPLE_RATE, dtype="float32"), SAMPLE_RATE)
+        except Exception:
+            pass
         return output_path
 
     def _mix_streams(
@@ -212,6 +304,14 @@ class SystemAudioRecorder:
         if len(sys_audio) == 0 and len(mic_audio) == 0:
             return np.array([], dtype=np.float32)
 
+        # Clip each stream to [-1, 1] before mixing — a single corrupt
+        # sample with a huge value would otherwise cause peak-based
+        # normalization to crush the entire signal to near-silence.
+        if len(sys_audio) > 0:
+            sys_audio = np.clip(sys_audio, -1.0, 1.0)
+        if len(mic_audio) > 0:
+            mic_audio = np.clip(mic_audio, -1.0, 1.0)
+
         if len(sys_audio) == 0:
             return mic_audio
         if len(mic_audio) == 0:
@@ -224,11 +324,9 @@ class SystemAudioRecorder:
         if len(mic_audio) < max_len:
             mic_audio = np.pad(mic_audio, (0, max_len - len(mic_audio)))
 
-        # Mix and normalize to prevent clipping
-        mixed = sys_audio + mic_audio
-        peak = np.abs(mixed).max()
-        if peak > 0.95:
-            mixed = mixed * (0.95 / peak)
+        # Average instead of sum — prevents clipping and preserves
+        # both streams at a reasonable level
+        mixed = (sys_audio + mic_audio) * 0.5
 
         return mixed
 
@@ -283,6 +381,7 @@ class SystemAudioRecorder:
                 return
 
             np.nan_to_num(samples, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
+            np.clip(samples, -1.0, 1.0, out=samples)
 
             # Debug: log first buffer info per stream
             if not self._debug_logged:
