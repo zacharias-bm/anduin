@@ -30,6 +30,8 @@ a = Analysis(
         # MLX native libraries (dylibs, Metal shaders)
         (os.path.join(sitepackages, "mlx", "lib"), "mlx/lib"),
         (os.path.join(sitepackages, "mlx", "core.cpython-312-darwin.so"), "mlx"),
+        # mlx-whisper mel filter weights
+        (os.path.join(sitepackages, "mlx_whisper", "assets"), "mlx_whisper/assets"),
     ],
     hiddenimports=[
         # PyObjC frameworks used at runtime
