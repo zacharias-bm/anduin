@@ -942,12 +942,16 @@ body.dark-mode #record-btn::before {
 
 #summary-body {
   font-size: 16px;
-  line-height: 1.7;
+  line-height: 1.55;
   color: var(--color-stone);
+}
+#summary-body .p-break {
+  display: block;
+  margin-top: 6px;
 }
 #summary-body h2, #summary-body h3, #summary-body h4, #summary-body h5 {
   color: var(--color-ink);
-  margin: 20px 0 8px;
+  margin: 12px 0 4px;
   line-height: 1.3;
 }
 #summary-body h2 { font-size: 20px; }

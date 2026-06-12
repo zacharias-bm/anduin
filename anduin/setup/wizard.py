@@ -79,6 +79,8 @@ class _WizardHandler(BaseHTTPRequestHandler):
         path = self.path.split("?")[0].rstrip("/")
 
         if path == "/api/wizard/whisper/download":
+            global _whisper_progress
+            _whisper_progress = {"downloaded": 0, "total": 0, "filename": "", "done": False, "error": ""}
             self._json({"ok": True})
             threading.Thread(target=self._download_whisper, daemon=True).start()
 

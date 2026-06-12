@@ -253,7 +253,7 @@ function renderMarkdown(text) {
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/^- (.+)$/gm, "<li>$1</li>")
     .replace(/(<li>.*<\/li>)/gs, "<ul>$1</ul>")
-    .replace(/\n{2,}/g, "<br><br>")
+    .replace(/\n{2,}/g, '<span class="p-break"></span>')
     .replace(/\n/g, "<br>");
 }
 
@@ -348,6 +348,7 @@ document.getElementById("delete-meeting-btn").addEventListener("click", async (e
   e.stopPropagation();
   if (!currentMeetingId) return;
   closeDeleteDropdown();
+  if (!confirm("Delete this meeting? This cannot be undone.")) return;
   try {
     const res = await fetch(`/api/meetings/${currentMeetingId}`, { method: "DELETE" });
     if (res.ok) {
