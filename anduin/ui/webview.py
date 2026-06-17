@@ -5,11 +5,28 @@ import AppKit
 import WebKit
 
 
+class _AppDelegate(AppKit.NSObject):
+    """Handles dock icon click to reopen the window."""
+
+    def initWithWindow_(self, anduin_window):
+        self = objc.super(_AppDelegate, self).init()
+        if self is None:
+            return None
+        self._anduin_window = anduin_window
+        return self
+
+    def applicationShouldHandleReopen_hasVisibleWindows_(self, app, has_visible):
+        if not has_visible:
+            self._anduin_window.open()
+        return True
+
+
 class AnduinWindow:
     def __init__(self, port: int):
         self._port = port
         self._window = None
         self._webview = None
+        self._app_delegate = None
         self._build()
 
     def _build(self):
@@ -40,6 +57,9 @@ class AnduinWindow:
 
         url = AppKit.NSURL.URLWithString_(f"http://127.0.0.1:{self._port}/")
         self._webview.loadRequest_(AppKit.NSURLRequest.requestWithURL_(url))
+
+        self._app_delegate = _AppDelegate.alloc().initWithWindow_(self)
+        AppKit.NSApp.setDelegate_(self._app_delegate)
 
     def open(self):
         # Ensure the app can take focus (regular app instead of accessory)

@@ -3,7 +3,7 @@ requires = ["setuptools"]
 
 [project]
 name = "anduin"
-version = "0.2.1"
+version = "0.2.2"
 requires-python = ">=3.9"
 
 [project.scripts]
@@ -15,7 +15,7 @@ dev = ["pyinstaller"]
 [tool.briefcase]
 project_name = "Anduin"
 bundle = "com.backingminds"
-version = "0.2.1"
+version = "0.2.2"
 url = "https://backingminds.com"
 license = "Proprietary"
 author = "BackingMinds"
