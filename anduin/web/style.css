@@ -1093,6 +1093,60 @@ body.dark-mode #status-bar::before {
   50% { opacity: 0.5; transform: scale(1.2); }
 }
 
+/* ── Confirm Dialog ───────────────────────────────────── */
+
+#confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.15s ease;
+}
+
+#confirm-dialog {
+  background: var(--color-paper);
+  border-radius: 16px;
+  padding: 24px;
+  width: 320px;
+  text-align: center;
+}
+
+#confirm-message {
+  font-size: 15px;
+  color: var(--color-stone);
+  margin-bottom: 20px;
+}
+
+#confirm-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+#confirm-buttons button {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#confirm-cancel {
+  background: var(--color-border);
+  color: var(--color-stone);
+}
+
+#confirm-ok {
+  background: #D32F2F;
+  color: white;
+}
+
 /* ── Record Modal ─────────────────────────────────────── */
 
 #modal-overlay {

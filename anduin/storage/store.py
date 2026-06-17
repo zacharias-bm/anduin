@@ -202,14 +202,21 @@ def set_speaker_name(speaker_id: str, name: str):
         )
 
 
-def get_config(key: str, default=None):
+def _read_config() -> dict:
     if not CONFIG_PATH.exists():
-        return default
-    return json.loads(CONFIG_PATH.read_text()).get(key, default)
+        return {}
+    try:
+        return json.loads(CONFIG_PATH.read_text()) or {}
+    except (json.JSONDecodeError, ValueError):
+        return {}
+
+
+def get_config(key: str, default=None):
+    return _read_config().get(key, default)
 
 
 def set_config(key: str, value):
-    config = json.loads(CONFIG_PATH.read_text()) if CONFIG_PATH.exists() else {}
+    config = _read_config()
     config[key] = value
     CONFIG_PATH.write_text(json.dumps(config, indent=2))
 

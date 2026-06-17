@@ -111,11 +111,14 @@ async function loadMeetings(query, autoSelect = false) {
   const url = query
     ? `/api/meetings/search?q=${encodeURIComponent(query)}`
     : "/api/meetings";
-  const meetings = await fetchJSON(url);
-  renderSidebar(meetings);
-
-  if (autoSelect && meetings.length > 0 && !currentMeetingId) {
-    selectMeeting(meetings[0].id);
+  try {
+    const meetings = await fetchJSON(url);
+    renderSidebar(meetings);
+    if (autoSelect && meetings.length > 0 && !currentMeetingId) {
+      selectMeeting(meetings[0].id);
+    }
+  } catch (e) {
+    setTimeout(() => loadMeetings(query, autoSelect), 500);
   }
 }
 
@@ -136,7 +139,17 @@ function renderSidebar(meetings) {
     .join("");
 
   list.querySelectorAll(".meeting-item[data-id]").forEach((el) => {
-    el.addEventListener("click", () => selectMeeting(parseInt(el.dataset.id)));
+    el.addEventListener("click", () => {
+      const id = parseInt(el.dataset.id);
+      if (id === currentMeetingId) {
+        currentMeetingId = null;
+        document.getElementById("meeting-view").style.display = "none";
+        document.getElementById("empty-state").style.display = "flex";
+        document.querySelectorAll(".meeting-item").forEach(m => m.classList.remove("active"));
+      } else {
+        selectMeeting(id);
+      }
+    });
   });
 }
 
@@ -245,16 +258,32 @@ function renderTranscript(segments) {
 }
 
 function renderMarkdown(text) {
-  return esc(text)
-    .replace(/^#### (.+)$/gm, "<h5>$1</h5>")
-    .replace(/^### (.+)$/gm, "<h4>$1</h4>")
-    .replace(/^## (.+)$/gm, "<h3>$1</h3>")
-    .replace(/^# (.+)$/gm, "<h2>$1</h2>")
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/^- (.+)$/gm, "<li>$1</li>")
-    .replace(/(<li>.*<\/li>)/gs, "<ul>$1</ul>")
-    .replace(/\n{2,}/g, '<span class="p-break"></span>')
-    .replace(/\n/g, "<br>");
+  const escaped = esc(text);
+  const lines = escaped.split("\n");
+  let html = "";
+  let inList = false;
+  for (const line of lines) {
+    const headerMatch = line.match(/^(#{1,4}) (.+)$/);
+    const listMatch = line.match(/^- (.+)$/);
+    if (headerMatch) {
+      if (inList) { html += "</ul>"; inList = false; }
+      const level = headerMatch[1].length + 1;
+      html += `<h${level}>${headerMatch[2]}</h${level}>`;
+    } else if (listMatch) {
+      if (!inList) { html += "<ul>"; inList = true; }
+      html += `<li>${listMatch[1]}</li>`;
+    } else {
+      if (inList) { html += "</ul>"; inList = false; }
+      if (line.trim() === "") {
+        html += '<span class="p-break"></span>';
+      } else {
+        html += line + "<br>";
+      }
+    }
+  }
+  if (inList) html += "</ul>";
+  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  return html;
 }
 
 function esc(s) {
@@ -344,11 +373,31 @@ deleteBtn.addEventListener("click", (e) => {
 
 document.addEventListener("click", closeDeleteDropdown);
 
+function showConfirm(message) {
+  return new Promise(resolve => {
+    document.getElementById("confirm-message").textContent = message;
+    const overlay = document.getElementById("confirm-overlay");
+    overlay.style.display = "flex";
+    const ok = document.getElementById("confirm-ok");
+    const cancel = document.getElementById("confirm-cancel");
+    function cleanup(result) {
+      overlay.style.display = "none";
+      ok.removeEventListener("click", onOk);
+      cancel.removeEventListener("click", onCancel);
+      resolve(result);
+    }
+    function onOk() { cleanup(true); }
+    function onCancel() { cleanup(false); }
+    ok.addEventListener("click", onOk);
+    cancel.addEventListener("click", onCancel);
+  });
+}
+
 document.getElementById("delete-meeting-btn").addEventListener("click", async (e) => {
   e.stopPropagation();
   if (!currentMeetingId) return;
   closeDeleteDropdown();
-  if (!confirm("Delete this meeting? This cannot be undone.")) return;
+  if (!await showConfirm("Delete this meeting? This cannot be undone.")) return;
   try {
     const res = await fetch(`/api/meetings/${currentMeetingId}`, { method: "DELETE" });
     if (res.ok) {
@@ -421,10 +470,8 @@ function hideSettings() {
 }
 
 async function loadSettingsPanel() {
-  // Theme
-  document.getElementById("s-dark-mode").checked = localStorage.getItem("theme") === "dark";
-
   const settings = await fetchJSON("/api/settings");
+  document.getElementById("s-dark-mode").checked = !!settings.dark_mode;
   document.getElementById("s-auto-summarize").checked = settings.auto_summarize;
   document.getElementById("s-keep-audio").checked = settings.keep_audio;
   // Load dictionary
@@ -474,7 +521,7 @@ async function saveSetting(key, value) {
 document.getElementById("s-dark-mode").addEventListener("change", e => {
   const dark = e.target.checked;
   document.body.classList.toggle("dark-mode", dark);
-  localStorage.setItem("theme", dark ? "dark" : "light");
+  saveSetting("dark_mode", dark);
 });
 
 document.getElementById("s-auto-summarize").addEventListener("change", e => saveSetting("auto_summarize", e.target.checked));
@@ -805,9 +852,16 @@ function connectSSE() {
 }
 
 // Theme
-function initTheme() {
-  const dark = localStorage.getItem("theme") === "dark";
-  document.body.classList.toggle("dark-mode", dark);
+async function initTheme() {
+  try {
+    const settings = await fetchJSON("/api/settings");
+    const dark = !!settings.dark_mode;
+    document.body.classList.toggle("dark-mode", dark);
+    const cb = document.getElementById("s-dark-mode");
+    if (cb) cb.checked = dark;
+  } catch (e) {
+    setTimeout(initTheme, 500);
+  }
 }
 
 // Init

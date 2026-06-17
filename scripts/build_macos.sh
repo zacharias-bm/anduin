@@ -32,18 +32,50 @@ echo "Created ${TARBALL}"
 # ── 4. Create .dmg for initial install ───────────────────────────────────────
 echo "Creating DMG..."
 DMG="dist/Anduin-${VERSION}-macos.dmg"
+DMG_RW="dist/_anduin_rw.dmg"
 
 # Create a temporary directory for the DMG contents
 DMG_DIR=$(mktemp -d)
 cp -R dist/Anduin.app "${DMG_DIR}/"
 ln -s /Applications "${DMG_DIR}/Applications"
 
+# Create a read-write DMG first so we can set Finder view options
 hdiutil create -volname "Anduin" \
     -srcfolder "${DMG_DIR}" \
-    -ov -format UDZO \
-    "${DMG}"
-
+    -ov -format UDRW \
+    "${DMG_RW}"
 rm -rf "${DMG_DIR}"
+
+# Mount the read-write DMG and configure the Finder window
+MOUNT_DIR=$(hdiutil attach "${DMG_RW}" -readwrite -noverify | grep "/Volumes/Anduin" | tail -1 | awk '{print $NF}')
+# Wait for mount
+sleep 1
+
+osascript <<APPLESCRIPT
+tell application "Finder"
+    tell disk "Anduin"
+        open
+        set current view of container window to icon view
+        set toolbar visible of container window to false
+        set statusbar visible of container window to false
+        set bounds of container window to {200, 120, 680, 400}
+        set theViewOptions to icon view options of container window
+        set arrangement of theViewOptions to not arranged
+        set icon size of theViewOptions to 80
+        set position of item "Anduin.app" of container window to {120, 140}
+        set position of item "Applications" of container window to {360, 140}
+        close
+    end tell
+end tell
+APPLESCRIPT
+
+# Ensure writes are flushed
+sync
+hdiutil detach "${MOUNT_DIR}" -quiet
+
+# Convert to compressed read-only DMG
+hdiutil convert "${DMG_RW}" -format UDZO -o "${DMG}"
+rm -f "${DMG_RW}"
 echo "Created ${DMG}"
 
 # ── 5. Generate checksums ────────────────────────────────────────────────────

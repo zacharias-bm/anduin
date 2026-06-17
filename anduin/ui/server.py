@@ -88,6 +88,7 @@ class _Handler(BaseHTTPRequestHandler):
                 "auto_summarize": store.get_config("auto_summarize", True),
                 "keep_audio": store.get_config("keep_audio", False),
                 "diarization_enabled": store.get_config("diarization_enabled", False),
+                "dark_mode": store.get_config("dark_mode", False),
             })
 
         elif path == "/api/templates":

@@ -168,8 +168,8 @@ if sys.platform == "darwin":
         icon=str(project_root / "resources" / "Anduin.icns"),
         bundle_identifier="com.backingminds.anduin",
         info_plist={
-            "CFBundleShortVersionString": "0.2.0",
-            "CFBundleVersion": "0.2.0",
+            "CFBundleShortVersionString": "0.2.1",
+            "CFBundleVersion": "0.2.1",
             "LSUIElement": True,  # Menu bar app — no Dock icon
             "NSMicrophoneUsageDescription": "Anduin needs microphone access to record meetings.",
             "NSScreenCaptureUsageDescription": "Anduin captures system audio for digital meeting recording.",

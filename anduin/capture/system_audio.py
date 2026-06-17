@@ -62,18 +62,22 @@ class SystemAudioRecorder:
         self._lock = threading.Lock()
         self._output_delegate = None
         self._include_mic = False
+        self._mic_only = False
+        self._mic_sample_rate: int | None = None
         self._debug_logged = False
         self.is_recording = False
 
-    def start(self, include_mic: bool = True):
-        """Start capturing system audio.
+    def start(self, include_mic: bool = True, mic_only: bool = False):
+        """Start capturing audio via ScreenCaptureKit.
 
         Args:
             include_mic: Also capture microphone input (True for digital meetings).
+            mic_only: Only capture mic, no system audio (for in-person meetings).
         """
         self._system_buffers = []
         self._mic_buffers = []
-        self._include_mic = include_mic
+        self._include_mic = include_mic or mic_only
+        self._mic_only = mic_only
         self._debug_logged = False
         self.is_recording = True
 
@@ -107,12 +111,12 @@ class SystemAudioRecorder:
 
         # Configure: audio capture, minimal video
         config = SC.SCStreamConfiguration.alloc().init()
-        config.setCapturesAudio_(True)
+        config.setCapturesAudio_(not mic_only)
         config.setSampleRate_(SAMPLE_RATE)
         config.setChannelCount_(CHANNELS)
         config.setExcludesCurrentProcessAudio_(True)
 
-        if include_mic:
+        if self._include_mic:
             config.setCaptureMicrophone_(True)
 
         # Minimize video (can't fully disable, but make it tiny)
@@ -331,16 +335,30 @@ class SystemAudioRecorder:
         return mixed
 
     def _assemble_stream(self, buffers: list[tuple[float, np.ndarray]]) -> np.ndarray:
-        """Assemble timestamped buffers into a continuous audio stream."""
+        """Assemble timestamped buffers into a continuous audio stream.
+
+        Detects the actual sample rate from timestamps and resamples to
+        SAMPLE_RATE if needed (e.g. mic delivering at 48kHz).
+        """
         if not buffers:
             return np.array([], dtype=np.float32)
 
-        # Sort by timestamp
         buffers.sort(key=lambda x: x[0])
-
-        # Simple concatenation in timestamp order
         arrays = [b[1] for b in buffers]
-        return np.concatenate(arrays)
+        audio = np.concatenate(arrays)
+
+        if len(buffers) >= 2:
+            time_span = buffers[-1][0] - buffers[0][0]
+            if time_span > 1.0:
+                actual_rate = len(audio) / time_span
+                if actual_rate > SAMPLE_RATE * 1.5:
+                    expected_samples = int(time_span * SAMPLE_RATE)
+                    import scipy.signal
+                    ratio = int(round(actual_rate / SAMPLE_RATE))
+                    audio = scipy.signal.decimate(audio, ratio).astype(np.float32)
+                    print(f"[system_audio] resampled {actual_rate:.0f}Hz → {SAMPLE_RATE}Hz", flush=True)
+
+        return audio
 
     def _handle_audio_buffer(self, sample_buffer, is_mic: bool):
         """Called by the delegate when audio data arrives."""
@@ -382,16 +400,6 @@ class SystemAudioRecorder:
 
             np.nan_to_num(samples, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
             np.clip(samples, -1.0, 1.0, out=samples)
-
-            # Debug: log first buffer info per stream
-            if not self._debug_logged:
-                stream_type = "mic" if is_mic else "system"
-                print(f"[system_audio] first {stream_type} buffer: "
-                      f"{len(samples)} samples, ts={timestamp:.3f}", flush=True)
-                if not is_mic:
-                    self._debug_logged = True
-
-            # Flatten to mono (already configured as 1 channel, but safety check)
             samples = samples.flatten()
 
             with self._lock:
