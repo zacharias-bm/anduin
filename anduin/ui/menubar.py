@@ -475,7 +475,11 @@ class AnduinApp(rumps.App):
 
         self._window.open()
         self._event_bus.publish("pipeline", {"stage": "update", "message": f"Downloading v{version}..."})
-        success = download_and_apply(update, progress=_progress, on_stage=_on_stage)
+        try:
+            success = download_and_apply(update, progress=_progress, on_stage=_on_stage)
+        except Exception as e:
+            success = False
+            self._event_bus.publish("pipeline", {"stage": "update", "message": f"Update failed: {e}"})
         if not success:
             self._event_bus.publish("pipeline", {"stage": "update", "message": "Update failed — try again later"})
             import time

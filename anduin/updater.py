@@ -135,7 +135,7 @@ def download_and_apply(
             if actual_sha != expected_sha:
                 print(f"[updater] checksum mismatch: expected {expected_sha}, got {actual_sha}", flush=True)
                 shutil.rmtree(tmp_dir, ignore_errors=True)
-                return False
+                raise ValueError("Download verification failed (checksum mismatch). Try again later.")
 
         _stage("Installing update...")
         extract_dir = tmp_dir / "extracted"

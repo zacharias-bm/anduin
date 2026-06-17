@@ -7,7 +7,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-VERSION=$(python -c "from anduin import __version__; print(__version__)")
+VERSION=$(python3 -c "from anduin import __version__; print(__version__)")
 echo "Building Anduin v${VERSION} for macOS..."
 
 # ── 1. Clean previous build ──────────────────────────────────────────────────
